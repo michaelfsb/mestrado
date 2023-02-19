@@ -1,6 +1,6 @@
 #
-# Description: This script simulates the behavior of a solar panel calculating the voltage in line 32.
-#   The voltage is calculated using the Lambert W function and the irradiation is varied from 0 to 1.5.
+# Description: This script simulates the behavior of a solar panel withouth calculating the voltage.
+#   The voltage is varied from 0 to 177 and the irradiation is fixed at 1.
 #
 
 from math import exp
@@ -8,7 +8,7 @@ from scipy.special import lambertw
 import matplotlib.pyplot as plt
 
 # Model of solar panel
-def solar_panel_model(lambda_ps: float):
+def solar_panel_model(lambda_ps: float, v_ps: float):
     # Declare constants
     Q = 1.6e-19 # Elementary charge
     K = 1.38e-23 # Boltzmann constant
@@ -30,40 +30,48 @@ def solar_panel_model(lambda_ps: float):
     Irs = Ior*(T_ps/Tr)**3*exp(Q*Ego*(1/Tr-1/T_ps)/(K*A));	
 
     # Equation of the solar panel
-    v_ps = (N_ss*V_t*A*(lambertw(exp(1)*(Iph/Irs+1))-1)).real;
     i_ps = N_ps*(Iph-Irs*(exp(v_ps/V_t/N_ss/A)-1));
     
-    return [i_ps, v_ps]
-
+    return i_ps
 
 # Simulation of the solar panel
-irradiation = range(0, 100, 1)
+voltage = range(0, 177, 1)
 current = []
-voltage = []
 power = []
-for i in irradiation:
-    [i_ps, v_ps] = solar_panel_model(i/100)
+for i in voltage:
+    i_ps = solar_panel_model(1, voltage[i])
     current.append(i_ps)
-    voltage.append(v_ps)
-    power.append(i_ps*v_ps)
+    power.append(i_ps*voltage[i])
 
 # Plot results
 fig, ax1 = plt.subplots()
-plt.title('Solar panel simulation')
-plt.grid(axis='both')
+plt.grid(axis='both',linestyle='-.')
+plt.xlim(0, 180)
+fig.set_figwidth(7)
 
 ax2 = ax1.twinx()
-ax1.plot(voltage, current, 'g-')
-ax2.plot(voltage, power, 'b-')
+ax1.plot(voltage, current, 'g-',  label='Current')
+ax2.plot(voltage, power, 'b-',  label='Power')
 
 ax1.set_xlabel('Voltage')
-ax1.set_ylabel('Current', color='g')
-ax2.set_ylabel('Power', color='b')
+ax1.set_ylabel('Current')
+ax2.set_ylabel('Power')
+
+handles,labels = [],[]
+for ax in fig.axes:
+    for h,l in zip(*ax.get_legend_handles_labels()):
+        handles.append(h)
+        labels.append(l)
+
+plt.legend(handles,labels, loc=[0.03, 0.72]) 
+
+ax1.set_ylim([0, 29])
+ax2.set_ylim([0, 3600])
+
+fig.tight_layout()
 
 plt.show()
 
-
-
-
-
-
+# Generate a Latex plot of the results (cant be used with plt.show() and plt.legend() functions)
+# import tikzplotlib
+# tikzplotlib.save("solarPanel2.tex")
