@@ -4,7 +4,6 @@
 #
 
 from math import exp
-from scipy.special import lambertw
 import matplotlib.pyplot as plt
 
 # Model of solar panel
