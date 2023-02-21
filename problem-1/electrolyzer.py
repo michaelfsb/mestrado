@@ -14,7 +14,7 @@ def electrolyzer(i_el: float):
     F = 96485 # Faraday constant
 
     # Declare parameters
-    N_c = 1          # Number of cells
+    N_c = 120        # Number of cells
     T = 298          # Temperature cell
     delta = 100e-6   # Thickness of membrane (tirei do google)
     lambda_ = 17     # degree of humidification of the membrane
