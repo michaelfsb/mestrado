@@ -1,6 +1,7 @@
 # Imports
 import casadi as ca
 import numpy as np
+import matplotlib.pyplot as plt
 from scipy.io import loadmat
 
 # Define Lambert W function
@@ -122,8 +123,8 @@ for k in range(N):
     Uk = ca.MX.sym('U_' + str(k))
     w += [Uk]
     lbw += [1]
-    ubw += [1000]
-    w0 += [1]
+    ubw += [150]
+    w0 += [0]
 
     # Integrate till the end of the interval
     Fk = F(x0=Xk, p=Uk, t=k*dt)
@@ -148,31 +149,41 @@ sol = solver(x0=w0, lbx=lbw, ubx=ubw, lbg=lbg, ubg=ubg)
 # Print the optimal cost
 print('Optimal cost: ' + str(sol['f']))
 
-# Retrieve the solution
+# Retrieve the control
 w_opt = sol['x'].full().flatten()
-
-# Plot the solution
-import matplotlib.pyplot as plt
-plt.figure()
-plt.step(range(N), w_opt, '--')
-plt.xlabel('Time')
-plt.ylabel('Control')
-plt.grid()
-plt.show()
 
 # Simulating the system with the solution
 Xs = ca.vertcat(0.5)
 m = []
+ts = []
 
 for s in range(N):
     Fs = F(x0=Xs, p=w_opt[s], t=s*dt)
     Xs = Fs['xf'] 
     m.append(Xs.full().flatten()[0])
+    ts.append(s*dt)
 
-# Plot the simulation
-plt.figure()
-plt.step(range(N), m, '--')
-plt.xlabel('Time')
-plt.ylabel('State')
-plt.grid()
+# Plot results
+fig, ax1 = plt.subplots()
+plt.grid(axis='both',linestyle='-.')
+fig.set_figwidth(7)
+
+ax2 = ax1.twinx()
+ax1.plot(ts, w_opt, 'g-',  label='Electrolyzer current')
+ax2.plot(ts, m, 'b-',  label='Hydrogen mass')
+
+ax1.set_xlabel('Time')
+ax1.set_ylabel('Electrolyzer current')
+ax2.set_ylabel('Hydrogen mass')
+
+handles,labels = [],[]
+for ax in fig.axes:
+    for h,l in zip(*ax.get_legend_handles_labels()):
+        handles.append(h)
+        labels.append(l)
+
+plt.legend(handles,labels, loc=[0.03, 0.72]) 
+
+fig.tight_layout()
+
 plt.show()
