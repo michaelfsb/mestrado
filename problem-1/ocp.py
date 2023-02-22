@@ -14,7 +14,8 @@ def lambertw(x, max_iter=10):
 
 # Preliminaries
 Tf = 1440 # Final time (min)
-N = 2*Tf # Number of control intervals 
+#N = 2*Tf # Number of control intervals 
+N = 360
 
 # Read irradiation and demand data from file
 mat_contents = loadmat('problem-1/vetores_sol_carga.mat')
@@ -77,7 +78,7 @@ Irs = Ior*(T_ps/Tr)** 3*ca.exp(Q*Ego*(1/Tr-1/T_ps)/(K*A))
 # Algebraic equations
 f_h2 = N_c*i_el/F 
 v_el = (E_cell + V_actC + V_actA + i_el*R_cell)
-v_ps = (N_ss*Vt*A*(lambertw(ca.exp(1)*(Iph/Irs+1))-1))
+v_ps = 100
 i_ps = N_ps*(Iph-Irs*(ca.exp(v_ps/(N_ss*Vt))-1)) 
 
 # Lagrange cost function
@@ -103,10 +104,6 @@ Q = Jk*dt
 
 F = ca.Function('F', [X0, U, T], [X, Q], ['x0', 'p', 't'], ['xf', 'qf'])
 
-Fk = F(x0=0, p=0.4, t=0)
-print(Fk)
-
-
 # Start with an empty NLP
 w=[]
 w0 = []
@@ -118,15 +115,15 @@ lbg = []
 ubg = []
 
 # Integrate through time to obtain constraints at each time step
-Xk = ca.vertcat(0)
+Xk = ca.vertcat(0.5)
 
 for k in range(N):
     # New NLP variable for the control
     Uk = ca.MX.sym('U_' + str(k))
     w += [Uk]
-    lbw += [0]
+    lbw += [1]
     ubw += [1000]
-    w0 += [0]
+    w0 += [1]
 
     # Integrate till the end of the interval
     Fk = F(x0=Xk, p=Uk, t=k*dt)
@@ -135,8 +132,8 @@ for k in range(N):
 
     # Add inequality constraint: x1 is bound to be between 0 and infinity
     g += [Xk[0]]
-    lbg += [0]
-    ubg += [ca.inf]
+    lbg += [1]
+    ubg += [15]
 
 # Solve the NLP
 # Creat NPL Solver
@@ -147,3 +144,35 @@ solver = ca.nlpsol('solver', 'ipopt', prob)
 
 # Call the solver
 sol = solver(x0=w0, lbx=lbw, ubx=ubw, lbg=lbg, ubg=ubg)
+
+# Print the optimal cost
+print('Optimal cost: ' + str(sol['f']))
+
+# Retrieve the solution
+w_opt = sol['x'].full().flatten()
+
+# Plot the solution
+import matplotlib.pyplot as plt
+plt.figure()
+plt.step(range(N), w_opt, '--')
+plt.xlabel('Time')
+plt.ylabel('Control')
+plt.grid()
+plt.show()
+
+# Simulating the system with the solution
+Xs = ca.vertcat(0.5)
+m = []
+
+for s in range(N):
+    Fs = F(x0=Xs, p=w_opt[s], t=s*dt)
+    Xs = Fs['xf'] 
+    m.append(Xs.full().flatten()[0])
+
+# Plot the simulation
+plt.figure()
+plt.step(range(N), m, '--')
+plt.xlabel('Time')
+plt.ylabel('State')
+plt.grid()
+plt.show()
