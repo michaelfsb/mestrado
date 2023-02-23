@@ -7,9 +7,13 @@ from scipy.io import loadmat
 # Define Lambert W function
 def lambertw(x, max_iter=10):
     """Approximate the Lambert W function using Newton's method"""
-    w = ca.MX.zeros(x.shape)
+    w = ca.log(x) - ca.log(ca.log(x)) # Initial approximation using log
     for i in range(max_iter):
-        w_next = w - (w*ca.exp(w) - x) / (ca.exp(w) + w*(ca.exp(w)+1))
+        ew = ca.exp(w)
+        wew = w * ew
+        f = wew - x
+        df = (w + 2) * wew / (2 * w + 2)
+        w_next = w - f / df
         w = w_next
     return w
 
@@ -19,7 +23,8 @@ Tf = 1440 # Final time (min)
 N = 360
 
 # Read irradiation and demand data from file
-mat_contents = loadmat('problem-1/vetores_sol_carga.mat')
+# mat_contents = loadmat('problem-1/vetores_sol_carga.mat') # Local
+mat_contents = loadmat('vetores_sol_carga.mat') # Remote
 
 ini = Tf
 fim = 2*Tf # Take second day
@@ -79,7 +84,7 @@ Irs = Ior*(T_ps/Tr)** 3*ca.exp(Q*Ego*(1/Tr-1/T_ps)/(K*A))
 # Algebraic equations
 f_h2 = N_c*i_el/F 
 v_el = (E_cell + V_actC + V_actA + i_el*R_cell)
-v_ps = 100
+v_ps = (N_ss*Vt*A*(lambertw(ca.exp(1)*(Iph/Irs+1))-1))
 i_ps = N_ps*(Iph-Irs*(ca.exp(v_ps/(N_ss*Vt))-1)) 
 
 # Lagrange cost function
