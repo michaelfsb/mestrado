@@ -15,8 +15,8 @@ Tf = 1440 # Final time (min)
 N = 360
 
 # Read irradiation and demand data from file
-# mat_contents = loadmat('problem-1/vetores_sol_carga.mat') # Local
-mat_contents = loadmat('vetores_sol_carga.mat') # Remote
+mat_contents = loadmat('problem-1/vetores_sol_carga.mat') # Local
+#mat_contents = loadmat('vetores_sol_carga.mat') # Remote
 
 ini = Tf
 fim = 2*Tf # Take second day
@@ -36,14 +36,15 @@ Q = 1.6e-19 # Elementary charge
 K = 1.38e-23 # Boltzmann constant
 
 # Declare electrolyzer parameters
-N_c = 120        # Number of cells
-T = 298          # Temperature cell
-delta = 100e-6   # Thickness of membrane (tirei do google)
-lambda_ = 17     # degree of humidification of the membrane
-alpha_A = 2      # 
-i_0A = 1e-10     # 
-alpha_C = .5     # 
-i_0C = 1e-10     # 
+A_el = 212.5            # Stack area
+N_el = 120               # Number of cells
+P_h2 = 6.9              # Hydrogen partial pressure
+P_o2 = 1.3              # Oxygen partial pressure
+I_ao = 1.0631e-6    # Anode current density 
+I_co = 1e-3         # Cathode current density
+delta_b = 178e-6        # Membrane thickness
+lambda_b = 21           # Membrana water content
+t_el = 298              # Temperature
 
 # Declare photovoltaic parameters
 N_ps = 8            # Number of panels in parallel
@@ -62,25 +63,25 @@ i_el = ca.MX.sym('i_el') # Control - Electrical current in electrolyzer
 time = ca.MX.sym('time') # Time
 
 # Intermediate electrolyzer variables
-E_cell = 1.51184 - 1.5421e-3*T + 9.523e-5*T*ca.log(T) + 9.84e-8*T**2
-V_actA = ca.asinh(i_el/(2* i_0A))*R*T/(alpha_A*F)
-V_actC = ca.asinh(i_el/(2* i_0C))*R*T/(alpha_C*F)
-ro = (0.005139*lambda_-0.00326)**(1268*(303**-1 - T**-1))
-R_cell = delta/ro;
+i = i_el/A_el # Current density
+ro_b = (0.005139*lambda_b - 0.00326) * ca.exp(1268*(1/303 - 1/t_el)) # Membrane conductivity
+v_el_0 = 1.23 - 0.0009*(t_el-298) + 2.3*R*t_el*ca.log(P_h2**2*P_o2)/(4*F) # Reversible potential of the electrolyzer
+v_etd = (R*t_el/F)*ca.asinh(.5*i/I_ao) + (R*t_el/F)*ca.asinh(.5*i/I_co) + i*delta_b/ro_b # Eletrode overpotential
+v_el_hom_ion = delta_b*i_el/(A_el*ro_b) # Ohmic overvoltage and ionic overpotential
 
 # Intermediate photovoltaic variables
 Vt = K*T_ps/Q
-Iph = (Isc+Kl*(T-Tr))*Irradiation(time)
+Iph = (Isc+Kl*(T_ps-Tr))*Irradiation(time)
 Irs = Ior*(T_ps/Tr)** 3*ca.exp(Q*Ego*(1/Tr-1/T_ps)/(K*A))
 
 # Algebraic equations
-f_h2 = N_c*i_el/F 
-v_el = (E_cell + V_actC + V_actA + i_el*R_cell)
+f_h2 = N_el*i_el/F 
+v_el = v_el_0 + v_etd + v_el_hom_ion
 v_ps = (N_ss*Vt*A*(lambertw(ca.exp(1)*(Iph/Irs+1))-1))
 i_ps = N_ps*(Iph-Irs*(ca.exp(v_ps/(N_ss*Vt))-1)) 
 
 # Lagrange cost function
-f_q = (N_c**2*(v_el*i_el) - v_ps*i_ps)**2
+f_q = ((N_el*v_el*i_el) - v_ps*i_ps)**2
 
 # Diferential equations
 m_h2_dot = f_h2 - HydrogenDemand(time)
