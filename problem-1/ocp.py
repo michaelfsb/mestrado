@@ -12,11 +12,11 @@ def lambertw(x):
 # Preliminaries
 Tf = 1440 # Final time (min)
 #N = 2*Tf # Number of control intervals 
-N = 360
+N = 180
 
 # Read irradiation and demand data from file
-mat_contents = loadmat('problem-1/vetores_sol_carga.mat') # Local
-#mat_contents = loadmat('vetores_sol_carga.mat') # Remote
+#mat_contents = loadmat('problem-1/vetores_sol_carga.mat') # Local
+mat_contents = loadmat('vetores_sol_carga.mat') # Remote
 
 ini = Tf
 fim = 2*Tf # Take second day
@@ -26,8 +26,8 @@ fdemanda = -0.18+mat_contents['carga_real'][ini:fim]
 t_file = np.arange(1,len(sol_real)+1,1)
 
 # Create interpolants
-Irradiation = ca.interpolant("Irradiation", "bspline", [t_file], sol_real.flatten())
-HydrogenDemand = ca.interpolant("HydrogenDemand", "bspline", [t_file], fdemanda.flatten())
+Irradiation = ca.interpolant("Irradiation", "bspline", [t_file], sol_real.flatten()) # Normalized irradiation
+HydrogenDemand = ca.interpolant("HydrogenDemand", "bspline", [t_file], fdemanda.flatten()) # (Nm3/h)
 
 # Declare constants
 R = 8.314 # Gas constant
@@ -37,11 +37,11 @@ K = 1.38e-23 # Boltzmann constant
 
 # Declare electrolyzer parameters
 A_el = 212.5            # Stack area
-N_el = 120               # Number of cells
+N_el = 22500            # Number of cells
 P_h2 = 6.9              # Hydrogen partial pressure
 P_o2 = 1.3              # Oxygen partial pressure
-I_ao = 1.0631e-6    # Anode current density 
-I_co = 1e-3         # Cathode current density
+I_ao = 1.0631e-6        # Anode current density 
+I_co = 1e-3             # Cathode current density
 delta_b = 178e-6        # Membrane thickness
 lambda_b = 21           # Membrana water content
 t_el = 298              # Temperature
@@ -75,7 +75,7 @@ Iph = (Isc+Kl*(T_ps-Tr))*Irradiation(time)
 Irs = Ior*(T_ps/Tr)** 3*ca.exp(Q*Ego*(1/Tr-1/T_ps)/(K*A))
 
 # Algebraic equations
-f_h2 = N_el*i_el/F 
+f_h2 = (N_el*i_el/F)*(11.126/1000) # Hydrogen production rate (Nm3/h)
 v_el = v_el_0 + v_etd + v_el_hom_ion
 v_ps = (N_ss*Vt*A*(lambertw(ca.exp(1)*(Iph/Irs+1))-1))
 i_ps = N_ps*(Iph-Irs*(ca.exp(v_ps/(N_ss*Vt))-1)) 
