@@ -12,7 +12,7 @@ def lambertw(x):
 # Preliminaries
 Tf = 1440 # Final time (min)
 #N = 2*Tf # Number of control intervals 
-N = 180
+N = 90
 
 # Read irradiation and demand data from file
 #mat_contents = loadmat('problem-1/vetores_sol_carga.mat') # Local
@@ -75,7 +75,7 @@ Iph = (Isc+Kl*(T_ps-Tr))*Irradiation(time)
 Irs = Ior*(T_ps/Tr)** 3*ca.exp(Q*Ego*(1/Tr-1/T_ps)/(K*A))
 
 # Algebraic equations
-f_h2 = (N_el*i_el/F)*(11.126/1000) # Hydrogen production rate (Nm3/h)
+f_h2 = (N_el*i_el/F)*(11.126/(60*1000)) # Hydrogen production rate (Nm3/min)
 v_el = v_el_0 + v_etd + v_el_hom_ion
 v_ps = (N_ss*Vt*A*(lambertw(ca.exp(1)*(Iph/Irs+1))-1))
 i_ps = N_ps*(Iph-Irs*(ca.exp(v_ps/(N_ss*Vt))-1)) 
@@ -84,7 +84,7 @@ i_ps = N_ps*(Iph-Irs*(ca.exp(v_ps/(N_ss*Vt))-1))
 f_q = ((N_el*v_el*i_el) - v_ps*i_ps)**2
 
 # Diferential equations
-m_h2_dot = f_h2 - HydrogenDemand(time)
+m_h2_dot = f_h2 - HydrogenDemand(time)/60
 
 # Integrate dynamics
 # Foward Euler integration step
@@ -101,7 +101,7 @@ Xdto, Jk = f(X0, U, T)
 X = X0+dt*Xdto
 Q = Jk*dt
 
-F = ca.Function('F', [X0, U, T], [X, Q], ['x0', 'p', 't'], ['xf', 'qf'])
+FI = ca.Function('FI', [X0, U, T], [X, Q], ['x0', 'p', 't'], ['xf', 'qf'])
 
 # Start with an empty NLP
 w=[]
@@ -122,17 +122,17 @@ for k in range(N):
     w += [Uk]
     lbw += [1]
     ubw += [150]
-    w0 += [0]
+    w0 += [30]
 
     # Integrate till the end of the interval
-    Fk = F(x0=Xk, p=Uk, t=k*dt)
+    Fk = FI(x0=Xk, p=Uk, t=k*dt)
     Xk = Fk['xf']
     J = J + Fk['qf']
 
     # Add inequality constraint: x1 is bound to be between 0 and infinity
     g += [Xk[0]]
-    lbg += [1]
-    ubg += [15]
+    lbg += [.6]
+    ubg += [.8]
 
 # Solve the NLP
 # Creat NPL Solver
@@ -152,36 +152,37 @@ w_opt = sol['x'].full().flatten()
 
 # Simulating the system with the solution
 Xs = ca.vertcat(0.5)
-m = []
-ts = []
+m = []          # Simulated hydrogen mass
+f_h2_s = []     # Simulated hydrogen production rate
+ts = []         # Simulated time [min]
+th = []         # Simulated time [h]
 
 for s in range(N):
-    Fs = F(x0=Xs, p=w_opt[s], t=s*dt)
+    Fs = FI(x0=Xs, p=w_opt[s], t=s*dt)
+    f_h2_s.append((N_el*w_opt[s]/F)*(11.126/(60*1000)))
     Xs = Fs['xf'] 
     m.append(Xs.full().flatten()[0])
     ts.append(s*dt)
+    th.append(s*dt/60)
 
 # Plot results
-fig, ax1 = plt.subplots()
-plt.grid(axis='both',linestyle='-.')
-fig.set_figwidth(7)
+fig, axs = plt.subplots(4,1)
+fig.suptitle('Simulation results')
+fig.set_size_inches(10, 10)
 
-ax2 = ax1.twinx()
-ax1.plot(ts, w_opt, 'g-',  label='Electrolyzer current')
-ax2.plot(ts, m, 'b-',  label='Hydrogen mass')
+axs[0].step(th, w_opt, 'g-', where ='post')
+axs[0].set_ylabel('Electrolyzer current [A]')
 
-ax1.set_xlabel('Time')
-ax1.set_ylabel('Electrolyzer current')
-ax2.set_ylabel('Hydrogen mass')
+axs[1].plot(th, m, 'b-')
+axs[1].set_ylabel('Hydrogen [Nm3]')
 
-handles,labels = [],[]
-for ax in fig.axes:
-    for h,l in zip(*ax.get_legend_handles_labels()):
-        handles.append(h)
-        labels.append(l)
+axs[2].plot(th, Irradiation(ts), 'g-')
+axs[2].set_ylabel('Solar irradiation')
 
-plt.legend(handles,labels, loc=[0.03, 0.72]) 
-
-fig.tight_layout()
+axs[3].plot(th, HydrogenDemand(ts)/60, 'r-', label='Demand')
+axs[3].plot(th, f_h2_s, 'b-', label='Production')
+axs[3].legend()
+axs[3].set_ylabel('H2 [Nm3/min]')
+axs[3].set_xlabel('Time [min]')
 
 plt.show()
