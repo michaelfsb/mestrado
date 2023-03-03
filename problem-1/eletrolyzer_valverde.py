@@ -8,6 +8,8 @@ from math import exp, asinh, log
 import numpy as np
 import matplotlib.pyplot as plt
 
+N_el = 22500 # Number of cells
+
 # Model of PEM electrolyzer
 def electrolyzer_model(i_el: float):
 
@@ -17,7 +19,6 @@ def electrolyzer_model(i_el: float):
 
     # Declare electrolyzer parameters
     A_el = 212.5            # Stack area
-    N_el = 40               # Number of cells
     P_h2 = 6.9              # Hydrogen partial pressure
     P_o2 = 1.3              # Oxygen partial pressure
     I_ao = 1.0631*10**-6    # Anode current density 
@@ -35,17 +36,23 @@ def electrolyzer_model(i_el: float):
 
     # Algebraic equations
     v_el = v_el_0 + v_etd + v_el_hom_ion # Voltage of electrolyzer
+    fH2 = (N_el*i_el/F)*(11.126/(60)) # Hydrogen flow (g/h) -> (Nl/min)
+    #fH2 = (N_el*i_el/F)*(11.126/1000) # Hydrogen flow (g/h) -> (Nm3/h)
 
-    return v_el
+    return [v_el, fH2]
+
+
 
 # Simulation of the electrolyzer
 current = np.arange(1, 60, 1)
 voltage = []
 power = []
+f_h2 = []
 for i in range(len(current)):
-    v_el = electrolyzer_model(current[i])
+    [v_el, fH2] = electrolyzer_model(current[i])
     voltage.append(v_el)
-    power.append(v_el*40*current[i])
+    f_h2.append(fH2)
+    power.append(v_el*N_el*current[i]/1000)
 
 # Plot results
 fig, ax1 = plt.subplots()
@@ -57,9 +64,9 @@ ax2 = ax1.twinx()
 ax1.plot(current, voltage, 'g-',  label='Current')
 ax2.plot(current, power, 'b-',  label='Power')
 
-ax1.set_xlabel('Voltage')
-ax1.set_ylabel('Current')
-ax2.set_ylabel('Power')
+ax1.set_xlabel('Voltage (V)')
+ax1.set_ylabel('Current (A)')
+ax2.set_ylabel('Power (kW)')
 
 handles,labels = [],[]
 for ax in fig.axes:
@@ -74,4 +81,13 @@ for ax in fig.axes:
 
 fig.tight_layout()
 
+plt.show()
+
+# plot f_h2
+plt.figure()
+plt.title('Hydrogen flow')
+plt.xlabel('current (A)')
+plt.ylabel('f_h2 (Nl/min)')
+plt.grid()
+plt.plot(current, f_h2)
 plt.show()
