@@ -168,19 +168,27 @@ for s in range(N):
 # Plot results
 fig, axs = plt.subplots(4,1)
 fig.suptitle('Simulation results')
-fig.set_size_inches(10, 10)
+fig.set_size_inches(6, 8)
 
 axs[0].step(th, w_opt, 'g-', where ='post')
 axs[0].set_ylabel('Electrolyzer current [A]')
+axs[0].grid(axis='both',linestyle='-.')
+axs[0].set_xticks(np.arange(0, 26, 2))
 
 axs[1].plot(th, m, 'b-')
 axs[1].set_ylabel('Hydrogen [Nm3]')
+axs[1].grid(axis='both',linestyle='-.')
+axs[1].set_xticks(np.arange(0, 26, 2))
 
 axs[2].plot(th, Irradiation(ts), 'g-')
 axs[2].set_ylabel('Solar irradiation')
+axs[2].grid(axis='both',linestyle='-.')
+axs[2].set_xticks(np.arange(0, 26, 2))
 
-axs[3].plot(th, HydrogenDemand(ts)/60, 'r-', label='Demand')
-axs[3].plot(th, f_h2_s, 'b-', label='Production')
+axs[3].plot(th, HydrogenDemand(ts)/60, 'r-', label='Demd')
+axs[3].plot(th, f_h2_s, 'b-', label='Prod')
+axs[3].grid(axis='both',linestyle='-.')
+axs[3].set_xticks(np.arange(0, 26, 2))
 axs[3].legend()
 axs[3].set_ylabel('H2 [Nm3/min]')
 axs[3].set_xlabel('Time [min]')
