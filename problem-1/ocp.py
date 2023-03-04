@@ -18,7 +18,7 @@ M_min = 0.6 # Minimum mass of hydrogen (Nm3)
 M_max = 1 # Maximum mass of hydrogen (Nm3)
 I_e_0 = 30 # Initial current (A)
 I_e_std = 5 # Standby current (A)
-I_e_min = 10 # Minimum current (A)
+I_e_min = 25 # Minimum current (A)
 I_e_max = 100 # Maximum current (A)
 
 # Read irradiation and demand data from file
@@ -175,7 +175,7 @@ i_c = []        # Control current
 for s in range(N):
     i_c.append(w_opt_i[s]*w_opt_p[s]) 
     Fs = FI(x0=Xs, u=[w_opt_i[s], w_opt_p[s]], t=s*dt)
-    f_h2_s.append((N_el*i_c[s]/F)*(11.126/(1000)))
+    f_h2_s.append(w_opt_p[s]*(N_el*i_c[s]/F)*(11.126/(1000)))
     Xs = Fs['xf'] 
     m.append(Xs.full().flatten()[0])
     ts.append(s*dt)
