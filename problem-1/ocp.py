@@ -132,13 +132,20 @@ for k in range(N):
 
     # Integrate till the end of the interval
     Fk = FI(x0=Xk, p=Uk, t=k*dt)
-    Xk = Fk['xf']
+    Xk_end = Fk['xf']
     J = J + Fk['qf']
 
-    # Add inequality constraint: x1 is bound to be between 0 and infinity
-    g += [Xk[0]]
-    lbg += [M_min]
-    ubg += [M_max]
+    # New NLP variable for state at end of interval
+    Xk = ca.MX.sym('X_' + str(k+1))
+    w   += [Xk]
+    lbw += [M_min]
+    ubw += [M_max]
+    w0  += [M_0]
+
+    # Add equality constraint
+    g   += [Xk_end-Xk]
+    lbg += [0]
+    ubg += [0]
 
 # Solve the NLP
 # Creat NPL Solver
