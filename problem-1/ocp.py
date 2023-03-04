@@ -13,8 +13,8 @@ def lambertw(x):
 Tf = 1440 # Final time (min)
 #N = 2*Tf # Number of control intervals 
 N = 90
-M_0 = 0.65 # Initial mass of hydrogen (Nm3)
-M_min = 0.6 # Minimum mass of hydrogen (Nm3)
+M_0 = 0.7 # Initial mass of hydrogen (Nm3)
+M_min = 0.1 # Minimum mass of hydrogen (Nm3)
 M_max = 1 # Maximum mass of hydrogen (Nm3)
 I_e_0 = 30 # Initial current (A)
 I_e_std = 5 # Standby current (A)
@@ -89,7 +89,7 @@ v_ps = (N_ss*Vt*A*(lambertw(ca.exp(1)*(Iph/Irs+1))-1))
 i_ps = N_ps*(Iph-Irs*(ca.exp(v_ps/(N_ss*Vt))-1)) 
 
 # Lagrange cost function
-f_q = ((N_el*v_el*i_el) - v_ps*i_ps)**2 + p_el*(I_e_min-i_el)
+f_q = (p_el*(I_e_min-i_el))*((N_el*v_el*i_el) - v_ps*i_ps)**2 
 
 # Diferential equations
 m_h2_dot = f_h2 - HydrogenDemand(time)/60
