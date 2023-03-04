@@ -131,4 +131,6 @@ dmypy.json
 # Others
 .vscode/
 logs/
+local-tests/
 *.tex
+*.pdf
