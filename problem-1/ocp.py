@@ -13,10 +13,16 @@ def lambertw(x):
 Tf = 1440 # Final time (min)
 #N = 2*Tf # Number of control intervals 
 N = 90
+M_0 = 0.65 # Initial mass of hydrogen (Nm3)
+M_min = 0.6 # Minimum mass of hydrogen (Nm3)
+M_max = 1 # Maximum mass of hydrogen (Nm3)
+I_e_0 = 30 # Initial current (A)
+I_e_min = 1 # Minimum current (A)
+I_e_max = 100 # Maximum current (A)
 
 # Read irradiation and demand data from file
-#mat_contents = loadmat('problem-1/vetores_sol_carga.mat') # Local
-mat_contents = loadmat('vetores_sol_carga.mat') # Remote
+mat_contents = loadmat('problem-1/vetores_sol_carga.mat') # Local
+#mat_contents = loadmat('vetores_sol_carga.mat') # Remote
 
 ini = Tf
 fim = 2*Tf # Take second day
@@ -114,15 +120,15 @@ lbg = []
 ubg = []
 
 # Integrate through time to obtain constraints at each time step
-Xk = ca.vertcat(0.5)
+Xk = ca.vertcat(M_0)
 
 for k in range(N):
     # New NLP variable for the control
     Uk = ca.MX.sym('U_' + str(k))
     w += [Uk]
-    lbw += [1]
-    ubw += [150]
-    w0 += [30]
+    lbw += [I_e_min]
+    ubw += [I_e_max]
+    w0 += [I_e_0]
 
     # Integrate till the end of the interval
     Fk = FI(x0=Xk, p=Uk, t=k*dt)
@@ -131,8 +137,8 @@ for k in range(N):
 
     # Add inequality constraint: x1 is bound to be between 0 and infinity
     g += [Xk[0]]
-    lbg += [.6]
-    ubg += [.8]
+    lbg += [M_min]
+    ubg += [M_max]
 
 # Solve the NLP
 # Creat NPL Solver
@@ -151,7 +157,7 @@ print('Optimal cost: ' + str(sol['f']))
 w_opt = sol['x'].full().flatten()
 
 # Simulating the system with the solution
-Xs = ca.vertcat(0.5)
+Xs = ca.vertcat(M_0)
 m = []          # Simulated hydrogen mass
 f_h2_s = []     # Simulated hydrogen production rate
 ts = []         # Simulated time [min]
@@ -159,7 +165,7 @@ th = []         # Simulated time [h]
 
 for s in range(N):
     Fs = FI(x0=Xs, p=w_opt[s], t=s*dt)
-    f_h2_s.append((N_el*w_opt[s]/F)*(11.126/(60*1000)))
+    f_h2_s.append((N_el*w_opt[s]/F)*(11.126/(1000)))
     Xs = Fs['xf'] 
     m.append(Xs.full().flatten()[0])
     ts.append(s*dt)
@@ -185,12 +191,12 @@ axs[2].set_ylabel('Solar irradiation')
 axs[2].grid(axis='both',linestyle='-.')
 axs[2].set_xticks(np.arange(0, 26, 2))
 
-axs[3].plot(th, HydrogenDemand(ts)/60, 'r-', label='Demd')
+axs[3].plot(th, HydrogenDemand(ts), 'r-', label='Demd')
 axs[3].plot(th, f_h2_s, 'b-', label='Prod')
 axs[3].grid(axis='both',linestyle='-.')
 axs[3].set_xticks(np.arange(0, 26, 2))
 axs[3].legend()
-axs[3].set_ylabel('H2 [Nm3/min]')
+axs[3].set_ylabel('H2 [Nm3/h]')
 axs[3].set_xlabel('Time [min]')
 
 plt.show()
