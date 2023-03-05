@@ -22,8 +22,7 @@ I_e_min = 25 # Minimum current (A)
 I_e_max = 100 # Maximum current (A)
 
 # Read irradiation and demand data from file
-mat_contents = loadmat('problem-1/vetores_sol_carga.mat') # Local
-#mat_contents = loadmat('vetores_sol_carga.mat') # Remote
+mat_contents = loadmat('problem-1/vetores_sol_carga.mat')
 
 ini = Tf
 fim = 2*Tf # Take second day
