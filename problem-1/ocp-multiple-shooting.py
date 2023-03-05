@@ -91,7 +91,6 @@ f_q = ((N_el*v_el*i_el) - v_ps*i_ps)**2
 # Diferential equations
 m_h2_dot = f_h2 - HydrogenDemand(time)/60
 
-
 # Fixed step Runge-Kutta 4 integrator
 M = 4 # RK4 steps per interval
 DT = Tf/N/M

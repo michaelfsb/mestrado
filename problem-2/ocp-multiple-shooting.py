@@ -13,11 +13,12 @@ def lambertw(x):
 Tf = 1440 # Final time (min)
 #N = 2*Tf # Number of control intervals 
 N = 90
-M_0 = 0.65 # Initial mass of hydrogen (Nm3)
-M_min = 0.6 # Minimum mass of hydrogen (Nm3)
+M_0 = 0.7 # Initial mass of hydrogen (Nm3)
+M_min = 0.1 # Minimum mass of hydrogen (Nm3)
 M_max = 1 # Maximum mass of hydrogen (Nm3)
 I_e_0 = 30 # Initial current (A)
-I_e_min = 1 # Minimum current (A)
+I_e_std = 5 # Standby current (A)
+I_e_min = 25 # Minimum current (A)
 I_e_max = 100 # Maximum current (A)
 
 # Read irradiation and demand data from file
@@ -66,6 +67,7 @@ A = 1.6             # Factor. cell deviation from de ideal pn junction
 # Declare variables
 m_h2 = ca.MX.sym('m_h2') # State - Mass of hydrogen
 i_el = ca.MX.sym('i_el') # Control - Electrical current in electrolyzer
+p_el = ca.MX.sym('p_el') # Control - Electrolyzer state
 time = ca.MX.sym('time') # Time
 
 # Intermediate electrolyzer variables
@@ -81,33 +83,35 @@ Iph = (Isc+Kl*(T_ps-Tr))*Irradiation(time)
 Irs = Ior*(T_ps/Tr)** 3*ca.exp(Q*Ego*(1/Tr-1/T_ps)/(K*A))
 
 # Algebraic equations
-f_h2 = (N_el*i_el/F)*(11.126/(60*1000)) # Hydrogen production rate (Nm3/min)
+f_h2 = p_el*(N_el*i_el/F)*(11.126/(60*1000)) # Hydrogen production rate (Nm3/min)
 v_el = v_el_0 + v_etd + v_el_hom_ion
 v_ps = (N_ss*Vt*A*(lambertw(ca.exp(1)*(Iph/Irs+1))-1))
 i_ps = N_ps*(Iph-Irs*(ca.exp(v_ps/(N_ss*Vt))-1)) 
 
 # Lagrange cost function
-f_q = ((N_el*v_el*i_el) - v_ps*i_ps)**2
+f_q = (p_el*(I_e_min-i_el))*((N_el*v_el*i_el) - v_ps*i_ps)**2 
 
 # Diferential equations
 m_h2_dot = f_h2 - HydrogenDemand(time)/60
 
-# Integrate dynamics
-# Foward Euler integration step
-
 dt = Tf/N
-
-f = ca.Function('f', [m_h2, i_el, time], [m_h2_dot, f_q])
-
+# Fixed step Runge-Kutta 4 integrator
+M = 4 # RK4 steps per interval
+DT = Tf/N/M
+f = ca.Function('f', [m_h2, i_el, p_el, time], [m_h2_dot, f_q])
 X0 = ca.MX.sym('X0')
-U = ca.MX.sym('U')
+U = ca.MX.sym('U', 2)
 T = ca.MX.sym('T')
-
-Xdto, Jk = f(X0, U, T)
-X = X0+dt*Xdto
-Q = Jk*dt
-
-FI = ca.Function('FI', [X0, U, T], [X, Q], ['x0', 'p', 't'], ['xf', 'qf'])
+X = X0
+Q = 0
+for j in range(M):
+    k1, k1_q = f(X, U[0], U[1], T)
+    k2, k2_q = f(X + DT/2 * k1, U[0], U[1], T)
+    k3, k3_q = f(X + DT/2 * k2, U[0], U[1], T)
+    k4, k4_q = f(X + DT * k3, U[0], U[1], T)
+    X=X+DT/6*(k1 +2*k2 +2*k3 +k4)
+    Q = Q + DT/6*(k1_q + 2*k2_q + 2*k3_q + k4_q)
+FI = ca.Function('FI', [X0, U, T], [X, Q], ['x0', 'u', 't'], ['xf', 'qf'])
 
 # Start with an empty NLP
 w=[]
@@ -121,24 +125,32 @@ ubg = []
 
 # Integrate through time to obtain constraints at each time step
 Xk = ca.vertcat(M_0)
+dt = Tf/N
 
 for k in range(N):
     # New NLP variable for the control
-    Uk = ca.MX.sym('U_' + str(k))
+    Uk = ca.MX.sym('U_' + str(k), 2)
     w += [Uk]
-    lbw += [I_e_min]
-    ubw += [I_e_max]
-    w0 += [I_e_0]
+    lbw += [I_e_std, 0]
+    ubw += [I_e_max, 1]
+    w0 += [I_e_0, 1]
 
     # Integrate till the end of the interval
-    Fk = FI(x0=Xk, p=Uk, t=k*dt)
-    Xk = Fk['xf']
+    Fk = FI(x0=Xk, u=Uk, t=k*dt)
+    Xk_end = Fk['xf']
     J = J + Fk['qf']
 
-    # Add inequality constraint: x1 is bound to be between 0 and infinity
-    g += [Xk[0]]
-    lbg += [M_min]
-    ubg += [M_max]
+    # New NLP variable for state at end of interval
+    Xk = ca.MX.sym('X_' + str(k+1))
+    w   += [Xk]
+    lbw += [M_min]
+    ubw += [M_max]
+    w0  += [M_0]
+
+    # Add equality constraint
+    g   += [Xk_end-Xk]
+    lbg += [0]
+    ubg += [0]
 
 # Solve the NLP
 # Creat NPL Solver
@@ -155,6 +167,9 @@ print('Optimal cost: ' + str(sol['f']))
 
 # Retrieve the control
 w_opt = sol['x'].full().flatten()
+i_el_opt = w_opt[0::3]
+p_el_opt = w_opt[1::3]
+m_h2_opt = w_opt[2::3]
 
 # Simulating the system with the solution
 Xs = ca.vertcat(M_0)
@@ -162,10 +177,12 @@ m = []          # Simulated hydrogen mass
 f_h2_s = []     # Simulated hydrogen production rate
 ts = []         # Simulated time [min]
 th = []         # Simulated time [h]
+i_c = []        # Control current
 
 for s in range(N):
-    Fs = FI(x0=Xs, p=w_opt[s], t=s*dt)
-    f_h2_s.append((N_el*w_opt[s]/F)*(11.126/(1000)))
+    i_c.append(i_el_opt[s]*p_el_opt[s]) 
+    Fs = FI(x0=Xs, u=[i_el_opt[s], p_el_opt[s]], t=s*dt)
+    f_h2_s.append(p_el_opt[s]*(N_el*i_c[s]/F)*(11.126/(1000)))
     Xs = Fs['xf'] 
     m.append(Xs.full().flatten()[0])
     ts.append(s*dt)
@@ -176,7 +193,7 @@ fig, axs = plt.subplots(4,1)
 fig.suptitle('Simulation results')
 fig.set_size_inches(6, 8)
 
-axs[0].step(th, w_opt, 'g-', where ='post')
+axs[0].step(th, i_c, 'g-', where ='post')
 axs[0].set_ylabel('Electrolyzer current [A]')
 axs[0].grid(axis='both',linestyle='-.')
 axs[0].set_xticks(np.arange(0, 26, 2))
