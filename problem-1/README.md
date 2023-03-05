@@ -1,3 +1,5 @@
+# Problem 1
+
 ```math
 \begin{aligned}
 & \underset{u(\cdot)}{\text{minimize}}
