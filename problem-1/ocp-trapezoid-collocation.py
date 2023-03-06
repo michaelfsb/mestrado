@@ -170,9 +170,10 @@ x_opt = x_opt.full()
 u_opt = u_opt.full() 
 
 # Plot results
+t = t/60
 fig, axs = plt.subplots(2,1)
 fig.suptitle('Simulation results')
-fig.set_size_inches(6, 8)
+#fig.set_size_inches(6, 8)
 
 axs[0].step(t, *u_opt, 'g-', where ='post')
 axs[0].set_ylabel('Electrolyzer current [A]')
