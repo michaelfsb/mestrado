@@ -93,7 +93,7 @@ m_h2_dot = f_h2 - HydrogenDemand(time)/60
 
 f = ca.Function('f', [m_h2, i_el, time], [m_h2_dot, f_q], ['x', 'u', 't'], ['x_dot', 'L'])
 
-#
+# Creat NPL problem
 t = np.linspace(0, Tf, num=N, endpoint=True)
 h = [t[k+1]-t[k] for k in range(N-1)]
 
@@ -166,6 +166,13 @@ solver = ca.nlpsol('solver', 'ipopt', prob, opts)
 # Call the solver
 sol = solver(x0=w0, lbx=lbw, ubx=ubw, lbg=lbg, ubg=ubg)
 
+# Retrieve the optimization status
+optimzation_status = ''
+with open('problem-1/ocp-trapezoid-collocation.txt') as file:
+    for line in file:
+        if line.startswith('EXIT'):
+            optimzation_status = line.strip()[5:-1]
+
 # Retrieve the solution
 trajectories = ca.Function('trajectories', [w], [x_plot, u_plot], ['w'], ['x', 'u'])
 x_opt, u_opt = trajectories(sol['x'])
@@ -175,8 +182,7 @@ u_opt = u_opt.full()
 # Plot results
 t = t/60
 fig, axs = plt.subplots(2,1)
-fig.suptitle('Simulation results')
-#fig.set_size_inches(6, 8)
+fig.suptitle('Simulation Results: ' + optimzation_status)
 
 axs[0].step(t, *u_opt, 'g-', where ='post')
 axs[0].set_ylabel('Electrolyzer current [A]')
@@ -187,18 +193,5 @@ axs[1].plot(t, *x_opt, 'b-')
 axs[1].set_ylabel('Hydrogen [Nm3]')
 axs[1].grid(axis='both',linestyle='-.')
 axs[1].set_xticks(np.arange(0, 26, 2))
-
-# axs[2].plot(th, Irradiation(ts), 'g-')
-# axs[2].set_ylabel('Solar irradiation')
-# axs[2].grid(axis='both',linestyle='-.')
-# axs[2].set_xticks(np.arange(0, 26, 2))
-
-# axs[3].plot(th, HydrogenDemand(ts), 'r-', label='Demd')
-# axs[3].plot(th, f_h2_s, 'b-', label='Prod')
-# axs[3].grid(axis='both',linestyle='-.')
-# axs[3].set_xticks(np.arange(0, 26, 2))
-# axs[3].legend()
-# axs[3].set_ylabel('H2 [Nm3/h]')
-# axs[3].set_xlabel('Time [min]')
 
 plt.savefig('problem-1/ocp-trapezoid-collocation.png', bbox_inches='tight')
