@@ -124,6 +124,10 @@ w0 = []
 lbw = []
 ubw = []
 
+# For plotting x and u given w
+x_plot = []
+u_plot = []
+
 for k in range(N):
     # New NLP variable for the control
     w += [U[k]]
@@ -136,14 +140,22 @@ for k in range(N):
     lbw += [M_min]
     ubw += [M_max]
     w0  += [M_0]
+    x_plot += [X[k]]
+    u_plot += [U[k]]
 
 # Set the initial condition for the state
 lbw[1] = M_0
 ubw[1] = M_0
 
+# Concatenate vectors
+w = ca.vertcat(*w)
+g = ca.vertcat(*g)
+x_plot = ca.horzcat(*x_plot)
+u_plot = ca.horzcat(*u_plot)
+
 # Solve the NLP
 # Creat NPL Solver
-prob = {'f': L, 'x': ca.vertcat(*w), 'g': ca.vertcat(*g)}
+prob = {'f': L, 'x': w, 'g': g}
 
 # Use IPOPT as the NLP solver
 solver = ca.nlpsol('solver', 'ipopt', prob)
@@ -151,39 +163,26 @@ solver = ca.nlpsol('solver', 'ipopt', prob)
 # Call the solver
 sol = solver(x0=w0, lbx=lbw, ubx=ubw, lbg=lbg, ubg=ubg)
 
-# Print the optimal cost
-print('Optimal cost: ' + str(sol['f']))
+# Retrieve the solution
+trajectories = ca.Function('trajectories', [w], [x_plot, u_plot], ['w'], ['x', 'u'])
+x_opt, u_opt = trajectories(sol['x'])
+x_opt = x_opt.full()
+u_opt = u_opt.full() 
 
-# # Retrieve the control
-# w_opt = sol['x'].full().flatten()
-# i_el_opt = w_opt[0::2]
-# m_h2_opt = w_opt[1::2]
+# Plot results
+fig, axs = plt.subplots(2,1)
+fig.suptitle('Simulation results')
+fig.set_size_inches(6, 8)
 
-# # Simulating the system with the solution
-# Xs = ca.vertcat(M_0)
-# f_h2_s = []     # Simulated hydrogen production rate
-# ts = []         # Simulated time [min]
-# th = []         # Simulated time [h]
+axs[0].step(t, *u_opt, 'g-', where ='post')
+axs[0].set_ylabel('Electrolyzer current [A]')
+axs[0].grid(axis='both',linestyle='-.')
+axs[0].set_xticks(np.arange(0, 26, 2))
 
-# for s in range(N):
-#     f_h2_s.append((N_el*i_el_opt[s]/F)*(11.126/(1000)))
-#     ts.append(s*dt)
-#     th.append(s*dt/60)
-
-# # Plot results
-# fig, axs = plt.subplots(4,1)
-# fig.suptitle('Simulation results')
-# fig.set_size_inches(6, 8)
-
-# axs[0].step(th, i_el_opt, 'g-', where ='post')
-# axs[0].set_ylabel('Electrolyzer current [A]')
-# axs[0].grid(axis='both',linestyle='-.')
-# axs[0].set_xticks(np.arange(0, 26, 2))
-
-# axs[1].plot(th, m_h2_opt, 'b-')
-# axs[1].set_ylabel('Hydrogen [Nm3]')
-# axs[1].grid(axis='both',linestyle='-.')
-# axs[1].set_xticks(np.arange(0, 26, 2))
+axs[1].plot(t, *x_opt, 'b-')
+axs[1].set_ylabel('Hydrogen [Nm3]')
+axs[1].grid(axis='both',linestyle='-.')
+axs[1].set_xticks(np.arange(0, 26, 2))
 
 # axs[2].plot(th, Irradiation(ts), 'g-')
 # axs[2].set_ylabel('Solar irradiation')
@@ -198,4 +197,4 @@ print('Optimal cost: ' + str(sol['f']))
 # axs[3].set_ylabel('H2 [Nm3/h]')
 # axs[3].set_xlabel('Time [min]')
 
-# plt.savefig('problem-1/ocp-trapezoid-collocation.png', bbox_inches='tight')
+plt.savefig('problem-1/ocp-trapezoid-collocation.png', bbox_inches='tight')
