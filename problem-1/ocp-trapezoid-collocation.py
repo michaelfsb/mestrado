@@ -94,32 +94,37 @@ m_h2_dot = f_h2 - HydrogenDemand(time)/60
 f = ca.Function('f', [m_h2, i_el, time], [m_h2_dot, f_q], ['x', 'u', 't'], ['x_dot', 'L'])
 
 #
-t = np.linspace(0, Tf, num=N+1, endpoint=True)
-h = [t[k+1]-t[k] for k in range(N)]
+t = np.linspace(0, Tf, num=N, endpoint=True)
+h = [t[k+1]-t[k] for k in range(N-1)]
 
 X = []
 U = []
-L = 0
 
 for k in range(N):
     X += [ca.MX.sym('X_' + str(k))]
     U += [ca.MX.sym('U_' + str(k))]
 
-   
-# Start with an empty NLP
-w=[]
-w0 = []
-lbw = []
-ubw = []
+L = 0
 g = []
 lbg = []
 ubg = []
-
 for k in range(N-1):
+    # 
     f_k, w_k = f(X[k], U[k], t[k])
     f_k_1, w_k_1 = f(X[k+1], U[k+1], t[k+1])
     L = L + .5*h[k]*(w_k + w_k_1)
 
+    # Add equality constraint
+    g +=  [.5*h[k]*(f_k + f_k_1) + X[k] - X[k+1]]
+    lbg += [0]
+    ubg += [0]
+
+w=[]
+w0 = []
+lbw = []
+ubw = []
+
+for k in range(N):
     # New NLP variable for the control
     w += [U[k]]
     lbw += [I_e_min]
@@ -132,14 +137,9 @@ for k in range(N-1):
     ubw += [M_max]
     w0  += [M_0]
 
-    # Add equality constraint
-    g   += [.5*h[k]*(f_k + f_k_1) + X[k] - X[k+1]]
-    lbg += [0]
-    ubg += [0]
-
 # Set the initial condition for the state
-lbw[1] = [M_0]
-ubw[1] = [M_0]
+lbw[1] = M_0
+ubw[1] = M_0
 
 # Solve the NLP
 # Creat NPL Solver
