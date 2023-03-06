@@ -2,6 +2,7 @@
 import casadi as ca
 import numpy as np
 import matplotlib.pyplot as plt
+from scipy import interpolate
 from scipy.io import loadmat
 
 # Define Lambert W function
@@ -12,7 +13,7 @@ def lambertw(x):
 # Preliminaries
 Tf = 1440 # Final time (min)
 #N = 2*Tf # Number of control intervals 
-N = 90
+N = 30
 M_0 = 0.65 # Initial mass of hydrogen (Nm3)
 M_min = 0.6 # Minimum mass of hydrogen (Nm3)
 M_max = 1 # Maximum mass of hydrogen (Nm3)
@@ -181,17 +182,22 @@ u_opt = u_opt.full()
 
 # Plot results
 t = t/60
+f_x_opt = interpolate.interp1d(t, x_opt, kind='quadratic')
+f_u_opt = interpolate.interp1d(t, u_opt, kind='linear')
+t_new = np.arange(0, 24, 0.1)
+
 fig, axs = plt.subplots(2,1)
 fig.suptitle('Simulation Results: ' + optimzation_status)
 
-axs[0].step(t, *u_opt, 'g-', where ='post')
+axs[0].plot(t, *u_opt, '.r', t_new, *f_u_opt(t_new), '-b')
 axs[0].set_ylabel('Electrolyzer current [A]')
 axs[0].grid(axis='both',linestyle='-.')
 axs[0].set_xticks(np.arange(0, 26, 2))
 
-axs[1].plot(t, *x_opt, 'b-')
+axs[1].plot(t, *x_opt, '.r', t_new, *f_x_opt(t_new), '-g')
 axs[1].set_ylabel('Hydrogen [Nm3]')
+axs[1].set_xlabel('Time [h]')
 axs[1].grid(axis='both',linestyle='-.')
 axs[1].set_xticks(np.arange(0, 26, 2))
 
-plt.savefig('problem-1/ocp-trapezoid-collocation.png', bbox_inches='tight')
+plt.savefig('problem-1/ocp-trapezoid-collocation.png', bbox_inches='tight', dpi=300)
