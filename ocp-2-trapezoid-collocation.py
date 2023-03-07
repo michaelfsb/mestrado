@@ -144,7 +144,7 @@ u_plot = ca.horzcat(*u_plot)
 prob = {'f': L, 'x': w, 'g': g}
 
 # NLP solver options
-opts = {"ipopt.output_file" : "ocp-2/ocp-trapezoid-collocation.txt"}
+opts = {"ipopt.output_file" : "results/ocp-2-trapezoid-collocation.txt"}
 
 # Use IPOPT as the NLP solver
 solver = ca.nlpsol('solver', 'ipopt', prob, opts)

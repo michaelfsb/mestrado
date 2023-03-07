@@ -128,8 +128,11 @@ for k in range(N):
 # Creat NPL Solver
 prob = {'f': J, 'x': ca.vertcat(*w), 'g': ca.vertcat(*g)}
 
+# NLP solver options
+opts = {"ipopt.output_file" : "results/ocp-2-trapezoid-collocation.txt"}
+
 # Use IPOPT as the NLP solver
-solver = ca.nlpsol('solver', 'ipopt', prob)
+solver = ca.nlpsol('solver', 'ipopt', prob, opts)
 
 # Call the solver
 sol = solver(x0=w0,     # Initial guess
