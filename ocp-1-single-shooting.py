@@ -3,8 +3,8 @@ import casadi as ca
 import numpy as np
 import matplotlib.pyplot as plt
 
-from utils.math import lambertw
-from models.input_data import Irradiation, HydrogenDemand
+from models.photovoltaic_panel import pv_model
+from models.input_data import HydrogenDemand
 
 # Preliminaries
 Tf = 1440 # Final time (min)
@@ -20,8 +20,6 @@ I_e_max = 100 # Maximum current (A)
 # Declare constants
 R = 8.314 # Gas constant
 F = 96485 # Faraday constant
-Q = 1.6e-19 # Elementary charge
-K = 1.38e-23 # Boltzmann constant
 
 # Declare electrolyzer parameters
 A_el = 212.5            # Stack area
@@ -33,17 +31,6 @@ I_co = 1e-3             # Cathode current density
 delta_b = 178e-6        # Membrane thickness
 lambda_b = 21           # Membrana water content
 t_el = 298              # Temperature
-
-# Declare photovoltaic parameters
-N_ps = 8            # Number of panels in parallel
-N_ss = 300          # Number of panels in series
-T_ps =  298         # Temperature
-Tr = 298            # Reference temperature
-Isc = 3.27          # Short circuit current at Tr
-Kl = 0.0017         # Short circuit current temperature coeff
-Ior = 2.0793e-6     # Ior - Irs at Tr
-Ego = 1.1           # Band gap energy of the semiconductor
-A = 1.6             # Factor. cell deviation from de ideal pn junction
 
 # Declare variables
 m_h2 = ca.MX.sym('m_h2') # State - Mass of hydrogen
@@ -57,16 +44,10 @@ v_el_0 = 1.23 - 0.0009*(t_el-298) + 2.3*R*t_el*ca.log(P_h2**2*P_o2)/(4*F) # Reve
 v_etd = (R*t_el/F)*ca.asinh(.5*i/I_ao) + (R*t_el/F)*ca.asinh(.5*i/I_co) + i*delta_b/ro_b # Eletrode overpotential
 v_el_hom_ion = delta_b*i_el/(A_el*ro_b) # Ohmic overvoltage and ionic overpotential
 
-# Intermediate photovoltaic variables
-Vt = K*T_ps/Q
-Iph = (Isc+Kl*(T_ps-Tr))*Irradiation(time)
-Irs = Ior*(T_ps/Tr)** 3*ca.exp(Q*Ego*(1/Tr-1/T_ps)/(K*A))
-
 # Algebraic equations
 f_h2 = (N_el*i_el/F)*(11.126/(60*1000)) # Hydrogen production rate (Nm3/min)
 v_el = v_el_0 + v_etd + v_el_hom_ion
-v_ps = (N_ss*Vt*A*(lambertw(ca.exp(1)*(Iph/Irs+1))-1))
-i_ps = N_ps*(Iph-Irs*(ca.exp(v_ps/(N_ss*Vt))-1)) 
+[i_ps, v_ps] = pv_model(time) # Power and voltage of the photovoltaic panel (A, V
 
 # Lagrange cost function
 f_q = ((N_el*v_el*i_el) - v_ps*i_ps)**2
@@ -157,7 +138,7 @@ for s in range(N):
     th.append(s*dt/60)
 
 # Plot results
-fig, axs = plt.subplots(4,1)
+fig, axs = plt.subplots(2,1)
 fig.suptitle('Simulation results')
 fig.set_size_inches(6, 8)
 
@@ -170,18 +151,5 @@ axs[1].plot(th, m, 'b-')
 axs[1].set_ylabel('Hydrogen [Nm3]')
 axs[1].grid(axis='both',linestyle='-.')
 axs[1].set_xticks(np.arange(0, 26, 2))
-
-axs[2].plot(th, Irradiation(ts), 'g-')
-axs[2].set_ylabel('Solar irradiation')
-axs[2].grid(axis='both',linestyle='-.')
-axs[2].set_xticks(np.arange(0, 26, 2))
-
-axs[3].plot(th, HydrogenDemand(ts), 'r-', label='Demd')
-axs[3].plot(th, f_h2_s, 'b-', label='Prod')
-axs[3].grid(axis='both',linestyle='-.')
-axs[3].set_xticks(np.arange(0, 26, 2))
-axs[3].legend()
-axs[3].set_ylabel('H2 [Nm3/h]')
-axs[3].set_xlabel('Time [min]')
 
 plt.savefig('results/ocp-1-single-shooting.png', bbox_inches='tight')
