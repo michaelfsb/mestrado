@@ -21,7 +21,7 @@ I_e_min = 1 # Minimum current (A)
 I_e_max = 100 # Maximum current (A)
 
 # Read irradiation and demand data from file
-mat_contents = loadmat('problem-1/vetores_sol_carga.mat') # Local
+mat_contents = loadmat('ocp-1/vetores_sol_carga.mat') # Local
 #mat_contents = loadmat('vetores_sol_carga.mat') # Remote
 
 ini = Tf
@@ -199,4 +199,4 @@ axs[3].legend()
 axs[3].set_ylabel('H2 [Nm3/h]')
 axs[3].set_xlabel('Time [min]')
 
-plt.savefig('problem-1/ocp-single-shooting.png', bbox_inches='tight')
+plt.savefig('ocp-1/ocp-single-shooting.png', bbox_inches='tight')
