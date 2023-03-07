@@ -23,7 +23,7 @@ I_e_min = 25 # Minimum current (A)
 I_e_max = 100 # Maximum current (A)
 
 # Read irradiation and demand data from file
-mat_contents = loadmat('problem-2/vetores_sol_carga.mat')
+mat_contents = loadmat('ocp-2/vetores_sol_carga.mat')
 
 ini = Tf
 fim = 2*Tf # Take second day
@@ -161,7 +161,7 @@ u_plot = ca.horzcat(*u_plot)
 prob = {'f': L, 'x': w, 'g': g}
 
 # NLP solver options
-opts = {"ipopt.output_file" : "problem-2/ocp-trapezoid-collocation.txt"}
+opts = {"ipopt.output_file" : "ocp-2/ocp-trapezoid-collocation.txt"}
 
 # Use IPOPT as the NLP solver
 solver = ca.nlpsol('solver', 'ipopt', prob, opts)
@@ -171,7 +171,7 @@ sol = solver(x0=w0, lbx=lbw, ubx=ubw, lbg=lbg, ubg=ubg)
 
 # Retrieve the optimization status
 optimzation_status = ''
-with open('problem-2/ocp-trapezoid-collocation.txt') as file:
+with open('ocp-2/ocp-trapezoid-collocation.txt') as file:
     for line in file:
         if line.startswith('EXIT'):
             optimzation_status = line.strip()[5:-1]
@@ -203,4 +203,4 @@ axs[1].set_xlabel('Time [h]')
 axs[1].grid(axis='both',linestyle='-.')
 axs[1].set_xticks(np.arange(0, 26, 2))
 
-plt.savefig('problem-2/ocp-trapezoid-collocation.png', bbox_inches='tight', dpi=300)
+plt.savefig('ocp-2/ocp-trapezoid-collocation.png', bbox_inches='tight', dpi=300)
