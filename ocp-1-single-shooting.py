@@ -4,7 +4,7 @@ import numpy as np
 import matplotlib.pyplot as plt
 
 from utils.math import lambertw
-from models.inputdata import Irradiation, HydrogenDemand
+from models.input_data import Irradiation, HydrogenDemand
 
 # Preliminaries
 Tf = 1440 # Final time (min)
