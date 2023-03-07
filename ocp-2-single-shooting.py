@@ -3,94 +3,55 @@ import casadi as ca
 import numpy as np
 import matplotlib.pyplot as plt
 
-from utils.math import lambertw
+from models.photovoltaic_panel import pv_model
+from models.electrolyzer import F, N_el, electrolyzer_model
+from models.tank import thank_model
 from models.input_data import Irradiation, HydrogenDemand
 
 # Preliminaries
-Tf = 1440 # Final time (min)
-#N = 2*Tf # Number of control intervals 
-N = 30
-M_0 = 0.7 # Initial mass of hydrogen (Nm3)
-M_min = 0.1 # Minimum mass of hydrogen (Nm3)
-M_max = 1 # Maximum mass of hydrogen (Nm3)
-I_e_0 = 30 # Initial current (A)
-I_e_std = 5 # Standby current (A)
-I_e_min = 25 # Minimum current (A)
-I_e_max = 100 # Maximum current (A)
+Tf = 1440   # Final time (min)
+N = 90      # Number of control intervals
 
-# Declare constants
-R = 8.314 # Gas constant
-F = 96485 # Faraday constant
-Q = 1.6e-19 # Elementary charge
-K = 1.38e-23 # Boltzmann constant
-
-# Declare electrolyzer parameters
-A_el = 212.5            # Stack area
-N_el = 22500            # Number of cells
-P_h2 = 6.9              # Hydrogen partial pressure
-P_o2 = 1.3              # Oxygen partial pressure
-I_ao = 1.0631e-6        # Anode current density 
-I_co = 1e-3             # Cathode current density
-delta_b = 178e-6        # Membrane thickness
-lambda_b = 21           # Membrana water content
-t_el = 298              # Temperature
-
-# Declare photovoltaic parameters
-N_ps = 8            # Number of panels in parallel
-N_ss = 300          # Number of panels in series
-T_ps =  298         # Temperature
-Tr = 298            # Reference temperature
-Isc = 3.27          # Short circuit current at Tr
-Kl = 0.0017         # Short circuit current temperature coeff
-Ior = 2.0793e-6     # Ior - Irs at Tr
-Ego = 1.1           # Band gap energy of the semiconductor
-A = 1.6             # Factor. cell deviation from de ideal pn junction
+M_0 = 0.65      # Initial volume of hydrogen (Nm3)
+M_min = 0.6     # Minimum volume of hydrogen (Nm3)
+M_max = 1       # Maximum volume of hydrogen (Nm3)
+I_e_0 = 30      # Initial current (A)
+I_e_min = 1     # Minimum current (A)
+I_e_std = 5     # Standby current (A)
+I_e_max = 100   # Maximum current (A)
 
 # Declare variables
-m_h2 = ca.MX.sym('m_h2') # State - Mass of hydrogen
+v_h2 = ca.MX.sym('v_h2') # State - Volume of hydrogen
 i_el = ca.MX.sym('i_el') # Control - Electrical current in electrolyzer
 p_el = ca.MX.sym('p_el') # Control - Electrolyzer state
 time = ca.MX.sym('time') # Time
 
-# Intermediate electrolyzer variables
-i = i_el/A_el # Current density
-ro_b = (0.005139*lambda_b - 0.00326) * ca.exp(1268*(1/303 - 1/t_el)) # Membrane conductivity
-v_el_0 = 1.23 - 0.0009*(t_el-298) + 2.3*R*t_el*ca.log(P_h2**2*P_o2)/(4*F) # Reversible potential of the electrolyzer
-v_etd = (R*t_el/F)*ca.asinh(.5*i/I_ao) + (R*t_el/F)*ca.asinh(.5*i/I_co) + i*delta_b/ro_b # Eletrode overpotential
-v_el_hom_ion = delta_b*i_el/(A_el*ro_b) # Ohmic overvoltage and ionic overpotential
-
-# Intermediate photovoltaic variables
-Vt = K*T_ps/Q
-Iph = (Isc+Kl*(T_ps-Tr))*Irradiation(time)
-Irs = Ior*(T_ps/Tr)** 3*ca.exp(Q*Ego*(1/Tr-1/T_ps)/(K*A))
-
-# Algebraic equations
-f_h2 = p_el*(N_el*i_el/F)*(11.126/(60*1000)) # Hydrogen production rate (Nm3/min)
-v_el = v_el_0 + v_etd + v_el_hom_ion
-v_ps = (N_ss*Vt*A*(lambertw(ca.exp(1)*(Iph/Irs+1))-1))
-i_ps = N_ps*(Iph-Irs*(ca.exp(v_ps/(N_ss*Vt))-1)) 
+# Models equations
+[f_h2, v_el] = electrolyzer_model(i_el) # Hydrogen production rate (Nm3/min) and eletrolyzer voltage (V)
+f_h2 = p_el*f_h2 # Switching between electrolyzer states
+[i_ps, v_ps] = pv_model(Irradiation(time)) # Power and voltage of the photovoltaic panel (A, V)
+v_h2_dot = thank_model(f_h2, HydrogenDemand(time)/60) # Hydrongen volume rate in the tank (Nm3/min)
 
 # Lagrange cost function
-f_q = (p_el*(I_e_min-i_el))*((N_el*v_el*i_el) - v_ps*i_ps)**2 
-
-# Diferential equations
-m_h2_dot = f_h2 - HydrogenDemand(time)/60
-
-# Integrate dynamics
-# Foward Euler integration step
+f_l = (p_el*(I_e_min-i_el))*((N_el*v_el*i_el) - v_ps*i_ps)**2 
 
 dt = Tf/N
-
-f = ca.Function('f', [m_h2, i_el, p_el, time], [m_h2_dot, f_q])
-
+# Fixed step Runge-Kutta 4 integrator
+M = 4 # RK4 steps per interval
+DT = Tf/N/M
+f = ca.Function('f', [v_h2, i_el, p_el, time], [v_h2_dot, f_l])
 X0 = ca.MX.sym('X0')
-U = ca.MX.sym('U',2)
+U = ca.MX.sym('U', 2)
 T = ca.MX.sym('T')
-
-Xdto, Jk = f(X0, U[0], U[1], T)
-X = X0+dt*Xdto
-Q = Jk*dt
-
+X = X0
+Q = 0
+for j in range(M):
+    k1, k1_q = f(X, U[0], U[1], T)
+    k2, k2_q = f(X + DT/2 * k1, U[0], U[1], T)
+    k3, k3_q = f(X + DT/2 * k2, U[0], U[1], T)
+    k4, k4_q = f(X + DT * k3, U[0], U[1], T)
+    X=X+DT/6*(k1 +2*k2 +2*k3 +k4)
+    Q = Q + DT/6*(k1_q + 2*k2_q + 2*k3_q + k4_q)
 FI = ca.Function('FI', [X0, U, T], [X, Q], ['x0', 'u', 't'], ['xf', 'qf'])
 
 # Start with an empty NLP
@@ -129,7 +90,7 @@ for k in range(N):
 prob = {'f': J, 'x': ca.vertcat(*w), 'g': ca.vertcat(*g)}
 
 # NLP solver options
-opts = {"ipopt.output_file" : "results/ocp-2-trapezoid-collocation.txt"}
+opts = {"ipopt.output_file" : "results/ocp-2-single-shooting.txt"}
 
 # Use IPOPT as the NLP solver
 solver = ca.nlpsol('solver', 'ipopt', prob, opts)
@@ -146,52 +107,41 @@ print('Optimal cost: ' + str(sol['f']))
 
 # Retrieve the control
 w_opt = sol['x'].full().flatten()
-w_opt_i = w_opt[0::2]
-w_opt_p = w_opt[1::2]
+i_el_opt = w_opt[0::2]
+p_el_opt = w_opt[1::2]
 
 # Simulating the system with the solution
 Xs = ca.vertcat(M_0)
-m = []          # Simulated hydrogen mass
-f_h2_s = []     # Simulated hydrogen production rate
-ts = []         # Simulated time [min]
-th = []         # Simulated time [h]
+v_h2_s = []     # Simulated hydrogen mass
 i_c = []        # Control current
 
 for s in range(N):
-    i_c.append(w_opt_i[s]*w_opt_p[s]) 
-    Fs = FI(x0=Xs, u=[w_opt_i[s], w_opt_p[s]], t=s*dt)
-    f_h2_s.append(w_opt_p[s]*(N_el*i_c[s]/F)*(11.126/(1000)))
+    Fs = FI(x0=Xs, u=[i_el_opt[s], p_el_opt[s]], t=s*dt)
     Xs = Fs['xf'] 
-    m.append(Xs.full().flatten()[0])
-    ts.append(s*dt)
-    th.append(s*dt/60)
+    v_h2_s.append(Xs.full().flatten()[0])
+    i_c.append(i_el_opt[s]*p_el_opt[s]) 
+
+# Retrieve the optimization status
+optimzation_status = ''
+with open('results/ocp-2-single-shooting.txt') as file:
+    for line in file:
+        if line.startswith('EXIT'):
+            optimzation_status = line.strip()[5:-1]
 
 # Plot results
-fig, axs = plt.subplots(4,1)
-fig.suptitle('Simulation results')
-fig.set_size_inches(6, 8)
+ts = np.linspace(0, Tf/60, N)
+fig, axs = plt.subplots(2,1)
+fig.suptitle('Simulation results: ' + optimzation_status)
 
-axs[0].step(th, i_c, 'g-', where ='post')
+axs[0].step(ts, i_c, 'g-', where ='post')
 axs[0].set_ylabel('Electrolyzer current [A]')
 axs[0].grid(axis='both',linestyle='-.')
 axs[0].set_xticks(np.arange(0, 26, 2))
 
-axs[1].plot(th, m, 'b-')
+axs[1].plot(ts, v_h2_s, 'b-')
 axs[1].set_ylabel('Hydrogen [Nm3]')
+axs[1].set_xlabel('Time [min]')
 axs[1].grid(axis='both',linestyle='-.')
 axs[1].set_xticks(np.arange(0, 26, 2))
 
-axs[2].plot(th, Irradiation(ts), 'g-')
-axs[2].set_ylabel('Solar irradiation')
-axs[2].grid(axis='both',linestyle='-.')
-axs[2].set_xticks(np.arange(0, 26, 2))
-
-axs[3].plot(th, HydrogenDemand(ts), 'r-', label='Demd')
-axs[3].plot(th, f_h2_s, 'b-', label='Prod')
-axs[3].grid(axis='both',linestyle='-.')
-axs[3].set_xticks(np.arange(0, 26, 2))
-axs[3].legend()
-axs[3].set_ylabel('H2 [Nm3/h]')
-axs[3].set_xlabel('Time [min]')
-
-plt.savefig('results/ocp-2-single-shooting.png', bbox_inches='tight')
+plt.savefig('results/ocp-2-single-shooting.png', bbox_inches='tight', dpi=300)
