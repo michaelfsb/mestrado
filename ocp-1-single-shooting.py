@@ -84,13 +84,20 @@ for k in range(N):
 prob = {'f': J, 'x': ca.vertcat(*w), 'g': ca.vertcat(*g)}
 
 # NLP solver options
-opts = {"ipopt.output_file" : "results/ocp-1-trapezoid-collocation.txt"}
+opts = {"ipopt.output_file" : "results/ocp-1-single-shooting.txt"}
 
 # Use IPOPT as the NLP solver
 solver = ca.nlpsol('solver', 'ipopt', prob, opts)
 
 # Call the solver
 sol = solver(x0=w0, lbx=lbw, ubx=ubw, lbg=lbg, ubg=ubg)
+
+# Retrieve the optimization status
+optimzation_status = ''
+with open('results/ocp-1-single-shooting.txt') as file:
+    for line in file:
+        if line.startswith('EXIT'):
+            optimzation_status = line.strip()[5:-1]
 
 # Print the optimal cost
 print('Optimal cost: ' + str(sol['f']))
@@ -114,8 +121,15 @@ for s in range(N):
     th.append(s*dt/60)
 
 # Plot results
+# Retrieve the optimization status
+optimzation_status = ''
+with open('results/ocp-1-single-shooting.txt') as file:
+    for line in file:
+        if line.startswith('EXIT'):
+            optimzation_status = line.strip()[5:-1]
+
 fig, axs = plt.subplots(2,1)
-fig.suptitle('Simulation results')
+fig.suptitle('Simulation results: ' + optimzation_status)
 
 axs[0].step(th, w_opt, 'g-', where ='post')
 axs[0].set_ylabel('Electrolyzer current [A]')
