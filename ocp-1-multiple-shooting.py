@@ -3,11 +3,7 @@ import casadi as ca
 import numpy as np
 import matplotlib.pyplot as plt
 from scipy.io import loadmat
-
-# Define Lambert W function
-def lambertw(x):
-    E = 0.4586887;
-    return (1+E)*ca.log(6/5*x/ca.log(12/5*x/ca.log(1+12/5*x)) ) -E*ca.log(2*x/ca.log(1+2*x))
+from utils.math import lambertw
 
 # Preliminaries
 Tf = 1440 # Final time (min)
