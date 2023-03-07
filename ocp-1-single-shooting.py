@@ -92,13 +92,6 @@ solver = ca.nlpsol('solver', 'ipopt', prob, opts)
 # Call the solver
 sol = solver(x0=w0, lbx=lbw, ubx=ubw, lbg=lbg, ubg=ubg)
 
-# Retrieve the optimization status
-optimzation_status = ''
-with open('results/ocp-1-single-shooting.txt') as file:
-    for line in file:
-        if line.startswith('EXIT'):
-            optimzation_status = line.strip()[5:-1]
-
 # Print the optimal cost
 print('Optimal cost: ' + str(sol['f']))
 
@@ -107,20 +100,15 @@ w_opt = sol['x'].full().flatten()
 
 # Simulating the system with the solution
 Xs = ca.vertcat(M_0)
-m = []          # Simulated hydrogen mass
-f_h2_s = []     # Simulated hydrogen production rate
-ts = []         # Simulated time [min]
-th = []         # Simulated time [h]
+v_h2_s = []     # Simulated hydrogen volume
+ts = []         # Simulated time [h]
 
 for s in range(N):
     Fs = FI(x0=Xs, u=w_opt[s], t=s*dt)
-    f_h2_s.append((N_el*w_opt[s]/F)*(11.126/(1000)))
     Xs = Fs['xf'] 
-    m.append(Xs.full().flatten()[0])
-    ts.append(s*dt)
-    th.append(s*dt/60)
+    v_h2_s.append(Xs.full().flatten()[0])
+    ts.append(s*dt/60)
 
-# Plot results
 # Retrieve the optimization status
 optimzation_status = ''
 with open('results/ocp-1-single-shooting.txt') as file:
@@ -128,15 +116,16 @@ with open('results/ocp-1-single-shooting.txt') as file:
         if line.startswith('EXIT'):
             optimzation_status = line.strip()[5:-1]
 
+# Plot results
 fig, axs = plt.subplots(2,1)
 fig.suptitle('Simulation results: ' + optimzation_status)
 
-axs[0].step(th, w_opt, 'g-', where ='post')
+axs[0].step(ts, w_opt, 'g-', where ='post')
 axs[0].set_ylabel('Electrolyzer current [A]')
 axs[0].grid(axis='both',linestyle='-.')
 axs[0].set_xticks(np.arange(0, 26, 2))
 
-axs[1].plot(th, m, 'b-')
+axs[1].plot(ts, v_h2_s, 'b-')
 axs[1].set_ylabel('Hydrogen [Nm3]')
 axs[1].set_xlabel('Time [h]')
 axs[1].grid(axis='both',linestyle='-.')
