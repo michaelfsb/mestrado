@@ -2,19 +2,16 @@
 import casadi as ca
 import numpy as np
 import matplotlib.pyplot as plt
+from scipy import interpolate
 from scipy.io import loadmat
-
-# Define Lambert W function
-def lambertw(x):
-    E = 0.4586887;
-    return (1+E)*ca.log(6/5*x/ca.log(12/5*x/ca.log(1+12/5*x)) ) -E*ca.log(2*x/ca.log(1+2*x))
+from utils.math import lambertw
 
 # Preliminaries
 Tf = 1440 # Final time (min)
 #N = 2*Tf # Number of control intervals 
-N = 90
-M_0 = 0.7 # Initial mass of hydrogen (Nm3)
-M_min = 0.1 # Minimum mass of hydrogen (Nm3)
+N = 45
+M_0 = 0.65 # Initial mass of hydrogen (Nm3)
+M_min = 0.6 # Minimum mass of hydrogen (Nm3)
 M_max = 1 # Maximum mass of hydrogen (Nm3)
 I_e_0 = 30 # Initial current (A)
 I_e_std = 5 # Standby current (A)
@@ -22,8 +19,7 @@ I_e_min = 25 # Minimum current (A)
 I_e_max = 100 # Maximum current (A)
 
 # Read irradiation and demand data from file
-mat_contents = loadmat('ocp-2/vetores_sol_carga.mat') # Local
-#mat_contents = loadmat('vetores_sol_carga.mat') # Remote
+mat_contents = loadmat('ocp-2/vetores_sol_carga.mat')
 
 ini = Tf
 fim = 2*Tf # Take second day
@@ -83,130 +79,124 @@ Iph = (Isc+Kl*(T_ps-Tr))*Irradiation(time)
 Irs = Ior*(T_ps/Tr)** 3*ca.exp(Q*Ego*(1/Tr-1/T_ps)/(K*A))
 
 # Algebraic equations
-f_h2 = p_el*(N_el*i_el/F)*(11.126/(60*1000)) # Hydrogen production rate (Nm3/min)
+f_h2 =  p_el*(N_el*i_el/F)*(11.126/(60*1000)) # Hydrogen production rate (Nm3/min)
 v_el = v_el_0 + v_etd + v_el_hom_ion
 v_ps = (N_ss*Vt*A*(lambertw(ca.exp(1)*(Iph/Irs+1))-1))
 i_ps = N_ps*(Iph-Irs*(ca.exp(v_ps/(N_ss*Vt))-1)) 
 
 # Lagrange cost function
-f_q = (p_el*(I_e_min-i_el))*((N_el*v_el*i_el) - v_ps*i_ps)**2 
+f_q = (p_el*(I_e_min-i_el))*((N_el*v_el*i_el) - v_ps*i_ps)**2
 
 # Diferential equations
 m_h2_dot = f_h2 - HydrogenDemand(time)/60
 
-# Integrate dynamics
-# Foward Euler integration step
+f = ca.Function('f', [m_h2, i_el, p_el, time], [m_h2_dot, f_q], ['x', 'u_i', 'u_p', 't'], ['x_dot', 'L'])
 
-dt = Tf/N
+# Creat NPL problem
+t = np.linspace(0, Tf, num=N, endpoint=True)
+h = [t[k+1]-t[k] for k in range(N-1)]
 
-f = ca.Function('f', [m_h2, i_el, p_el, time], [m_h2_dot, f_q])
+X = []
+U = []
 
-X0 = ca.MX.sym('X0')
-U = ca.MX.sym('U',2)
-T = ca.MX.sym('T')
+for k in range(N):
+    X += [ca.MX.sym('X_' + str(k))]
+    U += [ca.MX.sym('U_' + str(k), 2)]
 
-Xdto, Jk = f(X0, U[0], U[1], T)
-X = X0+dt*Xdto
-Q = Jk*dt
+L = 0
+g = []
+lbg = []
+ubg = []
+for k in range(N-1):
+    # 
+    f_k, w_k = f(X[k], U[k][0], U[k][1], t[k])
+    f_k_1, w_k_1 = f(X[k+1], U[k+1][0], U[k+1][1], t[k+1])
+    L = L + .5*h[k]*(w_k + w_k_1)
 
-FI = ca.Function('FI', [X0, U, T], [X, Q], ['x0', 'u', 't'], ['xf', 'qf'])
+    # Add equality constraint
+    g +=  [.5*h[k]*(f_k + f_k_1) + X[k] - X[k+1]]
+    lbg += [0]
+    ubg += [0]
 
-# Start with an empty NLP
 w=[]
 w0 = []
 lbw = []
 ubw = []
-J = 0
-g = []
-lbg = []
-ubg = []
 
-# Integrate through time to obtain constraints at each time step
-Xk = ca.vertcat(M_0)
+# For plotting x and u given w
+x_plot = []
+u_plot = []
 
 for k in range(N):
-    # New NLP variable for the control [i_el, p_el]
-    Uk = ca.MX.sym('U_' + str(k), 2)
-    w += [Uk]
+    # New NLP variable for the control
+    w += [U[k]]
     lbw += [I_e_std, 0]
     ubw += [I_e_max, 1]
     w0 += [I_e_0, 1]
 
-    # Integrate till the end of the interval
-    Fk = FI(x0=Xk, u=Uk, t=k*dt)
-    Xk = Fk['xf']
-    J = J + Fk['qf']
+    # New NLP variable for state at end of interval
+    w   += [X[k]]
+    lbw += [M_min]
+    ubw += [M_max]
+    w0  += [M_0]
+    x_plot += [X[k]]
+    u_plot += [U[k]]
 
-    # Add inequality constraint: x1 is bound to be between 0 and infinity
-    g += [Xk[0]]
-    lbg += [M_min]
-    ubg += [M_max]
+# Set the initial condition for the state
+lbw[1] = M_0
+ubw[1] = M_0
+
+# Concatenate vectors
+w = ca.vertcat(*w)
+g = ca.vertcat(*g)
+x_plot = ca.horzcat(*x_plot)
+u_plot = ca.horzcat(*u_plot)
 
 # Solve the NLP
 # Creat NPL Solver
-prob = {'f': J, 'x': ca.vertcat(*w), 'g': ca.vertcat(*g)}
+prob = {'f': L, 'x': w, 'g': g}
+
+# NLP solver options
+opts = {"ipopt.output_file" : "ocp-2/ocp-trapezoid-collocation.txt"}
 
 # Use IPOPT as the NLP solver
-solver = ca.nlpsol('solver', 'ipopt', prob)
+solver = ca.nlpsol('solver', 'ipopt', prob, opts)
 
 # Call the solver
-sol = solver(x0=w0,     # Initial guess
-             lbx=lbw,   # Lower variable bound
-             ubx=ubw,   # Upper variable bound
-             lbg=lbg,   # Lower constraint bound
-             ubg=ubg)   # Upper constraint bound
+sol = solver(x0=w0, lbx=lbw, ubx=ubw, lbg=lbg, ubg=ubg)
 
-# Print the optimal cost
-print('Optimal cost: ' + str(sol['f']))
+# Retrieve the optimization status
+optimzation_status = ''
+with open('ocp-2/ocp-trapezoid-collocation.txt') as file:
+    for line in file:
+        if line.startswith('EXIT'):
+            optimzation_status = line.strip()[5:-1]
 
-# Retrieve the control
-w_opt = sol['x'].full().flatten()
-w_opt_i = w_opt[0::2]
-w_opt_p = w_opt[1::2]
-
-# Simulating the system with the solution
-Xs = ca.vertcat(M_0)
-m = []          # Simulated hydrogen mass
-f_h2_s = []     # Simulated hydrogen production rate
-ts = []         # Simulated time [min]
-th = []         # Simulated time [h]
-i_c = []        # Control current
-
-for s in range(N):
-    i_c.append(w_opt_i[s]*w_opt_p[s]) 
-    Fs = FI(x0=Xs, u=[w_opt_i[s], w_opt_p[s]], t=s*dt)
-    f_h2_s.append(w_opt_p[s]*(N_el*i_c[s]/F)*(11.126/(1000)))
-    Xs = Fs['xf'] 
-    m.append(Xs.full().flatten()[0])
-    ts.append(s*dt)
-    th.append(s*dt/60)
+# Retrieve the solution
+trajectories = ca.Function('trajectories', [w], [x_plot, u_plot], ['w'], ['x', 'u'])
+x_opt, u_opt = trajectories(sol['x'])
+x_opt = x_opt.full()
+u_opt = u_opt.full()
+i_el_opt = u_opt[0]*u_opt[1] 
 
 # Plot results
-fig, axs = plt.subplots(4,1)
-fig.suptitle('Simulation results')
-fig.set_size_inches(6, 8)
+t = t/60
+f_x_opt = interpolate.interp1d(t, x_opt, kind='quadratic')
+f_u_opt = interpolate.interp1d(t, i_el_opt, kind='linear')
+t_new = np.arange(0, 24, 0.1)
 
-axs[0].step(th, i_c, 'g-', where ='post')
+fig, axs = plt.subplots(2,1)
+fig.suptitle('Simulation Results: ' + optimzation_status)
+
+axs[0].plot(t, i_el_opt, '.r', t_new, f_u_opt(t_new), '-b')
 axs[0].set_ylabel('Electrolyzer current [A]')
 axs[0].grid(axis='both',linestyle='-.')
 axs[0].set_xticks(np.arange(0, 26, 2))
 
-axs[1].plot(th, m, 'b-')
+axs[1].plot(t, *x_opt, '.r', t_new, *f_x_opt(t_new), '-g')
 axs[1].set_ylabel('Hydrogen [Nm3]')
+axs[1].set_xlabel('Time [h]')
 axs[1].grid(axis='both',linestyle='-.')
 axs[1].set_xticks(np.arange(0, 26, 2))
 
-axs[2].plot(th, Irradiation(ts), 'g-')
-axs[2].set_ylabel('Solar irradiation')
-axs[2].grid(axis='both',linestyle='-.')
-axs[2].set_xticks(np.arange(0, 26, 2))
-
-axs[3].plot(th, HydrogenDemand(ts), 'r-', label='Demd')
-axs[3].plot(th, f_h2_s, 'b-', label='Prod')
-axs[3].grid(axis='both',linestyle='-.')
-axs[3].set_xticks(np.arange(0, 26, 2))
-axs[3].legend()
-axs[3].set_ylabel('H2 [Nm3/h]')
-axs[3].set_xlabel('Time [min]')
-
-plt.savefig('ocp-2/ocp-single-shooting.png', bbox_inches='tight')
+plt.savefig('ocp-2/ocp-trapezoid-collocation.png', bbox_inches='tight', dpi=300)
