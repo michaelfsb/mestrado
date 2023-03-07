@@ -3,7 +3,7 @@ import numpy as np
 from scipy.io import loadmat
 
 # Read irradiation and demand data from file
-mat_contents = loadmat('vetores_sol_carga.mat')
+mat_contents = loadmat('models/vetores_sol_carga.mat')
 
 Tf = 1440 # Final time (min)
 ini = Tf

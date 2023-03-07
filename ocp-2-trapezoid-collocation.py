@@ -3,8 +3,9 @@ import casadi as ca
 import numpy as np
 import matplotlib.pyplot as plt
 from scipy import interpolate
-from scipy.io import loadmat
+
 from utils.math import lambertw
+from models.inputdata import Irradiation, HydrogenDemand
 
 # Preliminaries
 Tf = 1440 # Final time (min)
@@ -17,20 +18,6 @@ I_e_0 = 30 # Initial current (A)
 I_e_std = 5 # Standby current (A)
 I_e_min = 25 # Minimum current (A)
 I_e_max = 100 # Maximum current (A)
-
-# Read irradiation and demand data from file
-mat_contents = loadmat('ocp-2/vetores_sol_carga.mat')
-
-ini = Tf
-fim = 2*Tf # Take second day
-
-sol_real = mat_contents['sol_real'][ini:fim]
-fdemanda = -0.18+mat_contents['carga_real'][ini:fim]
-t_file = np.arange(1,len(sol_real)+1,1)
-
-# Create interpolants
-Irradiation = ca.interpolant("Irradiation", "bspline", [t_file], sol_real.flatten()) # Normalized irradiation
-HydrogenDemand = ca.interpolant("HydrogenDemand", "bspline", [t_file], fdemanda.flatten()) # (Nm3/h)
 
 # Declare constants
 R = 8.314 # Gas constant
