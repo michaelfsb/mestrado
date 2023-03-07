@@ -10,7 +10,7 @@ from models.input_data import Irradiation, HydrogenDemand
 # Preliminaries
 Tf = 1440 # Final time (min)
 #N = 2*Tf # Number of control intervals 
-N = 30
+N = 90
 M_0 = 0.65 # Initial mass of hydrogen (Nm3)
 M_min = 0.6 # Minimum mass of hydrogen (Nm3)
 M_max = 1 # Maximum mass of hydrogen (Nm3)
