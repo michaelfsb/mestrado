@@ -212,4 +212,4 @@ axs[3].legend()
 axs[3].set_ylabel('H2 [Nm3/h]')
 axs[3].set_xlabel('Time [min]')
 
-plt.savefig('ocp-2/ocp-multiple-shooting.png', bbox_inches='tight')
+plt.savefig('results/ocp-2-multiple-shooting.png', bbox_inches='tight')

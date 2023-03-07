@@ -167,7 +167,7 @@ sol = solver(x0=w0, lbx=lbw, ubx=ubw, lbg=lbg, ubg=ubg)
 
 # Retrieve the optimization status
 optimzation_status = ''
-with open('ocp-2/ocp-trapezoid-collocation.txt') as file:
+with open('results/ocp-2-trapezoid-collocation.txt') as file:
     for line in file:
         if line.startswith('EXIT'):
             optimzation_status = line.strip()[5:-1]
@@ -199,4 +199,4 @@ axs[1].set_xlabel('Time [h]')
 axs[1].grid(axis='both',linestyle='-.')
 axs[1].set_xticks(np.arange(0, 26, 2))
 
-plt.savefig('ocp-2/ocp-trapezoid-collocation.png', bbox_inches='tight', dpi=300)
+plt.savefig('results/ocp-2-trapezoid-collocation.png', bbox_inches='tight', dpi=300)
