@@ -20,14 +20,14 @@ I_e_min = 1     # Minimum current (A)
 I_e_max = 100   # Maximum current (A)
 
 # Declare variables
-v_h2 = ca.MX.sym('v_h2') # State - Mass of hydrogen
+v_h2 = ca.MX.sym('v_h2') # State - Volume of hydrogen
 i_el = ca.MX.sym('i_el') # Control - Electrical current in electrolyzer
 time = ca.MX.sym('time') # Time
 
 # Models equations
 [f_h2, v_el] = electrolyzer_model(i_el) # Hydrogen production rate (Nm3/min) and eletrolyzer voltage (V)
 [i_ps, v_ps] = pv_model(Irradiation(time)) # Power and voltage of the photovoltaic panel (A, V)
-v_h2_dot = thank_model(f_h2, HydrogenDemand(time)/60)
+v_h2_dot = thank_model(f_h2, HydrogenDemand(time)/60) # Hydrongen volume rate in the tank (Nm3/min)
 
 # Lagrange cost function
 f_l = ((N_el*v_el*i_el) - v_ps*i_ps)**2
@@ -131,4 +131,4 @@ axs[1].set_xlabel('Time [h]')
 axs[1].grid(axis='both',linestyle='-.')
 axs[1].set_xticks(np.arange(0, 26, 2))
 
-plt.savefig('results/ocp-1-single-shooting.png', bbox_inches='tight')
+plt.savefig('results/ocp-1-single-shooting.png', bbox_inches='tight', dpi=300)

@@ -12,15 +12,15 @@ from models.input_data import Irradiation, HydrogenDemand
 Tf = 1440   # Final time (min)
 N = 90      # Number of control intervals
 
-M_0 = 0.65      # Initial mass of hydrogen (Nm3)
-M_min = 0.6     # Minimum mass of hydrogen (Nm3)
-M_max = 1       # Maximum mass of hydrogen (Nm3)
+M_0 = 0.65      # Initial volume of hydrogen (Nm3)
+M_min = 0.6     # Minimum volume of hydrogen (Nm3)
+M_max = 1       # Maximum volume of hydrogen (Nm3)
 I_e_0 = 30      # Initial current (A)
 I_e_min = 1     # Minimum current (A)
 I_e_max = 100   # Maximum current (A)
 
 # Declare variables
-v_h2 = ca.MX.sym('v_h2') # State - Mass of hydrogen
+v_h2 = ca.MX.sym('v_h2') # State - Volume of hydrogen
 i_el = ca.MX.sym('i_el') # Control - Electrical current in electrolyzer
 time = ca.MX.sym('time') # Time
 
@@ -133,4 +133,4 @@ axs[1].set_xlabel('Time [h]')
 axs[1].grid(axis='both',linestyle='-.')
 axs[1].set_xticks(np.arange(0, 26, 2))
 
-plt.savefig('results/ocp-1-multiple-shooting.png', bbox_inches='tight')
+plt.savefig('results/ocp-1-multiple-shooting.png', bbox_inches='tight', dpi=300)
