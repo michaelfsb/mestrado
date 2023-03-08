@@ -111,6 +111,9 @@ solver = ca.nlpsol('solver', 'ipopt', prob, opts)
 # Call the solver
 sol = solver(x0=w0, lbx=lbw, ubx=ubw, lbg=lbg, ubg=ubg)
 
+# Print the optimal cost
+print('Optimal cost: ' + str(sol['f']))
+
 # Retrieve the optimization status
 optimzation_status = ''
 with open('results/ocp-2-trapezoid-collocation.txt') as file:
