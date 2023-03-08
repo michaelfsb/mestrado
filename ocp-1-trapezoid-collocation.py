@@ -5,7 +5,7 @@ import matplotlib.pyplot as plt
 from scipy import interpolate
 
 from models.photovoltaic_panel import pv_model
-from models.electrolyzer import F, N_el, electrolyzer_model
+from models.electrolyzer import N_el, electrolyzer_model
 from models.tank import thank_model
 from models.input_data import Irradiation, HydrogenDemand
 
