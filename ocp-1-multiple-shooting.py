@@ -1,4 +1,5 @@
 # Imports
+import os
 import casadi as ca
 import numpy as np
 import matplotlib.pyplot as plt
@@ -94,7 +95,9 @@ for k in range(N):
 prob = {'f': J, 'x': ca.vertcat(*w), 'g': ca.vertcat(*g)}
 
 # NLP solver options
-opts = {"ipopt.output_file" : "results/ocp-1-multiple-shooting.txt"}
+file_name = os.path.basename(__file__).strip()[:-3]
+ipopt_log_file = 'results/'+file_name+'.txt'
+opts = {"ipopt.output_file" : ipopt_log_file}
 
 # Use IPOPT as the NLP solver
 solver = ca.nlpsol('solver', 'ipopt', prob, opts)
@@ -112,7 +115,7 @@ v_h2_opt = w_opt[1::2]
 
 # Retrieve the optimization status
 optimzation_status = ''
-with open('results/ocp-1-multiple-shooting.txt') as file:
+with open(ipopt_log_file) as file:
     for line in file:
         if line.startswith('EXIT'):
             optimzation_status = line.strip()[5:-1]
@@ -133,4 +136,4 @@ axs[1].set_xlabel('Time [h]')
 axs[1].grid(axis='both',linestyle='-.')
 axs[1].set_xticks(np.arange(0, 26, 2))
 
-plt.savefig('results/ocp-1-multiple-shooting.png', bbox_inches='tight', dpi=300)
+plt.savefig("results/"+file_name+".png", bbox_inches='tight', dpi=300)
