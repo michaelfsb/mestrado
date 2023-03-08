@@ -92,10 +92,8 @@ for k in range(N):
 prob = {'f': J, 'x': ca.vertcat(*w), 'g': ca.vertcat(*g)}
 
 # NLP solver options
-file_name = os.path.basename(__file__).strip()[:-3]
-ipopt_log_file = 'results/'+file_name+'.txt'
+ipopt_log_file = files.get_log_file_name(__file__)
 opts = {"ipopt.output_file" : ipopt_log_file}
-
 # Use IPOPT as the NLP solver
 solver = ca.nlpsol('solver', 'ipopt', prob, opts)
 
@@ -144,4 +142,4 @@ axs[1].set_xlabel('Time [min]')
 axs[1].grid(axis='both',linestyle='-.')
 axs[1].set_xticks(np.arange(0, 26, 2))
 
-plt.savefig("results/"+file_name+".png", bbox_inches='tight', dpi=300)
+plt.savefig(files.get_plot_file_name(__file__), bbox_inches='tight', dpi=300)
