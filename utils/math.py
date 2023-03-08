@@ -1,2 +1,0 @@
-import casadi as ca
-
