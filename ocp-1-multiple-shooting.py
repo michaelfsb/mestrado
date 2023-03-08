@@ -8,6 +8,7 @@ from models.photovoltaic_panel import pv_model
 from models.electrolyzer import N_el, electrolyzer_model
 from models.tank import thank_model
 from models.input_data import Irradiation, HydrogenDemand
+from utils import files
 
 # Preliminaries
 Tf = 1440   # Final time (min)
@@ -114,11 +115,7 @@ i_el_opt = w_opt[0::2]
 v_h2_opt = w_opt[1::2]
 
 # Retrieve the optimization status
-optimzation_status = ''
-with open(ipopt_log_file) as file:
-    for line in file:
-        if line.startswith('EXIT'):
-            optimzation_status = line.strip()[5:-1]
+optimzation_status = files.get_optimization_status(ipopt_log_file)
 
 # Plot results
 ts = np.linspace(0, Tf/60, N)
