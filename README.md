@@ -31,4 +31,5 @@ The system is composed of a photovoltaic panel and a PEM electrolyzer. The contr
 $\text{Cost} = R \cdot v_{H_{2}}(T_f) \cdot \int_{0}^{T_f}(N_{el} \cdot v_{el}(t) \cdot i_{el}(t) - v_{pv}(t) \cdot i_{pv}(t))^2\text{d}t$
 
 $f_{H_{2}}(t) = 0 \quad \text{if}~~i_{el}(t) < I_{min}$
+
 $f_{H_{2}}(t) = N_{el} \cdot \frac{i_{el}(t)}{F} \quad \text{if}~~i_{el}(t) \ge I_{min}$
