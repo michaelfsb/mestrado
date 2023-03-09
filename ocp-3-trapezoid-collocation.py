@@ -28,12 +28,9 @@ i_el = ca.MX.sym('i_el') # Control - Electrical current in electrolyzer
 time = ca.MX.sym('time') # Time
 
 # Models equations
-[f_h2, v_el] = electrolyzer_model(i_el) # Hydrogen production rate (Nm3/min) and eletrolyzer voltage (V)
-[i_ps, v_ps] = pv_model(Irradiation(time)) # Power and voltage of the photovoltaic panel (A, V)
+[f_h2, v_el, p_el] = electrolyzer_model(i_el) # Hydrogen production rate (Nm3/min) and eletrolyzer voltage (V)
+[i_ps, v_ps, p_ps] = pv_model(Irradiation(time)) # Power and voltage of the photovoltaic panel (A, V)
 v_h2_dot = thank_model(ca.if_else(i_el>I_e_std, f_h2, 0), HydrogenDemand(time)) # Hydrongen volume rate in the tank (Nm3/min)
-
-# Lagrange cost function
-f_l = ((N_el*v_el*i_el) - v_ps*i_ps)**2
 
 # Creat NPL problem
 t = np.linspace(0, Tf, num=N, endpoint=True)
@@ -46,6 +43,8 @@ for k in range(N):
     X += [ca.MX.sym('X_' + str(k))]
     U += [ca.MX.sym('U_' + str(k))]
 
+# Lagrange cost function
+f_l = (p_el - p_ps)**2
 f_l += f_l - X[-1]*4e12 # Add terminal cost
 
 f = ca.Function('f', [v_h2, i_el, time], [v_h2_dot, f_l], ['x', 'u', 't'], ['x_dot', 'L'])

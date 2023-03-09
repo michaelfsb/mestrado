@@ -4,7 +4,7 @@ import numpy as np
 import matplotlib.pyplot as plt
 
 from models.photovoltaic_panel import pv_model
-from models.electrolyzer import N_el, electrolyzer_model
+from models.electrolyzer import electrolyzer_model
 from models.tank import thank_model
 from models.input_data import Irradiation, HydrogenDemand
 from utils import files
@@ -28,13 +28,13 @@ p_el = ca.MX.sym('p_el') # Control - Electrolyzer state
 time = ca.MX.sym('time') # Time
 
 # Models equations
-[f_h2, v_el] = electrolyzer_model(i_el) # Hydrogen production rate (Nm3/min) and eletrolyzer voltage (V)
+[f_h2, v_el, p_el] = electrolyzer_model(i_el) # Hydrogen production rate (Nm3/min) and eletrolyzer voltage (V)
 f_h2 = p_el*f_h2 # Switching between electrolyzer states
-[i_ps, v_ps] = pv_model(Irradiation(time)) # Power and voltage of the photovoltaic panel (A, V)
+[i_ps, v_ps, p_ps] = pv_model(Irradiation(time)) # Power and voltage of the photovoltaic panel (A, V)
 v_h2_dot = thank_model(f_h2, HydrogenDemand(time)) # Hydrongen volume rate in the tank (Nm3/min)
 
 # Lagrange cost function
-f_l = (p_el*(I_e_min-i_el))*((N_el*v_el*i_el) - v_ps*i_ps)**2 
+f_l = (p_el*(I_e_min-i_el))*(p_el - p_ps)**2
 
 dt = Tf/N
 # Fixed step Runge-Kutta 4 integrator
