@@ -52,7 +52,7 @@ conda env create -f environment.yml
 conda activate mestrado
 ```
 
-Then you can execute each file or can run the flow command to run all:
+Then you can run each file or the flow command to run all of them.
 
 ```
 ls *.py|xargs -n 1 -P 1 python3
