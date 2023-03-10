@@ -29,7 +29,7 @@ $f_{H_{2}}(t) = s_{el}(t) \cdot N_{el} \cdot \frac{i_{el}(t)}{F}$
 
 The system is composed of a photovoltaic panel and a PEM electrolyzer. The control variable $i_{el}$ is the electrolyzer current.
 
-$\text{Cost} = R \cdot v_{H_{2}}(T_f) \cdot \int_{0}^{T_f}(N_{el} \cdot v_{el}(t) \cdot i_{el}(t) - v_{pv}(t) \cdot i_{pv}(t))^2\text{d}t$
+$\text{Cost} = R \cdot v_{H_{2}}(T_f) + \int_{0}^{T_f}(N_{el} \cdot v_{el}(t) \cdot i_{el}(t) - v_{pv}(t) \cdot i_{pv}(t))^2\text{d}t$
 
 $f_{H_{2}}(t) = 0 \quad \text{if}~~i_{el}(t) < I_{min}$
 
