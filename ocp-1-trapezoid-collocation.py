@@ -5,7 +5,7 @@ import matplotlib.pyplot as plt
 from scipy import interpolate
 
 from models.photovoltaic_panel import pv_model
-from models.electrolyzer import N_el, electrolyzer_model
+from models.electrolyzer import electrolyzer_model
 from models.tank import thank_model
 from models.input_data import Irradiation, HydrogenDemand
 from utils import files
@@ -27,12 +27,12 @@ i_el = ca.MX.sym('i_el') # Control - Electrical current in electrolyzer
 time = ca.MX.sym('time') # Time
 
 # Models equations
-[f_h2, v_el] = electrolyzer_model(i_el) # Hydrogen production rate (Nm3/min) and eletrolyzer voltage (V)
-[i_ps, v_ps] = pv_model(Irradiation(time)) # Power and voltage of the photovoltaic panel (A, V)
+[f_h2, v_el, p_el] = electrolyzer_model(i_el) # Hydrogen production rate (Nm3/min) and eletrolyzer voltage (V)
+[i_ps, v_ps, p_ps] = pv_model(Irradiation(time)) # Power and voltage of the photovoltaic panel (A, V)
 v_h2_dot = thank_model(f_h2, HydrogenDemand(time)) # Hydrongen volume rate in the tank (Nm3/min)
 
 # Lagrange cost function
-f_l = ((N_el*v_el*i_el) - v_ps*i_ps)**2
+f_l = (p_el - p_ps)**2
 
 # Creat NPL problem
 f = ca.Function('f', [v_h2, i_el, time], [v_h2_dot, f_l], ['x', 'u', 't'], ['x_dot', 'L'])
