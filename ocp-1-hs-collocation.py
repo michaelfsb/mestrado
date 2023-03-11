@@ -1,3 +1,5 @@
+## Hermite-Simpson collocation method (separated form) 
+
 # Imports
 import casadi as ca
 import numpy as np
