@@ -80,6 +80,10 @@ for k in range(N):
     lbg += [M_min]
     ubg += [M_max]
 
+# Set the initial condition for the state
+lbw[1] = M_0
+ubw[1] = M_0
+
 # Solve the NLP
 # Creat NPL Solver
 prob = {'f': J, 'x': ca.vertcat(*w), 'g': ca.vertcat(*g)}
