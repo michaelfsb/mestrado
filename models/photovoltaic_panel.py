@@ -6,7 +6,7 @@ def lambertw(x):
     E = 0.4586887
     return (1+E)*ca.log(6/5*x/ca.log(12/5*x/ca.log(1+12/5*x)) ) -E*ca.log(2*x/ca.log(1+2*x))
 
-def pv_model(irradiation):
+def pv_model(irradiation, v_ps=None):
     """ Photovoltaic panel model """ 
 
     # Declare constants
@@ -30,8 +30,10 @@ def pv_model(irradiation):
     Irs = Ior*(T_ps/Tr)** 3*ca.exp(Q*Ego*(1/Tr-1/T_ps)/(K*A))
 
     # Algebraic equations
-    v_ps = (N_ss*Vt*A*(lambertw(ca.exp(1)*(Iph/Irs+1))-1))
-    i_ps = N_ps*(Iph-Irs*(ca.exp(v_ps/(N_ss*Vt))-1)) 
+    if(v_ps is None):
+        v_ps = (N_ss*Vt*A*(lambertw(ca.exp(1)*(Iph/Irs+1))-1))
+
+    i_ps = N_ps*(Iph-Irs*(ca.exp(v_ps/(N_ss*Vt*A))-1))
     p_ps = v_ps*i_ps
 
     return [i_ps, v_ps, p_ps]
