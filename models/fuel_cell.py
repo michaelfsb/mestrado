@@ -31,6 +31,6 @@ def fuel_cell_model(i_fc):
     v_conc = K_1_conc*i_fc_d**K_2_conc # Concentration losses
 
     f_h2_cons = (N_fc*i_fc/(F*1000))*h2_flow_converter("Nl/min") # Hydrogen consumption rate
-    v_fc = N_fc*(v_fc_0 - v_act - v_ohm - v_conc) 
-    p_fc = v_fc*i_fc
+    v_fc = N_fc*(v_fc_0 - v_act - v_ohm - v_conc) # Fuel cell voltage
+    p_fc = v_fc*i_fc # Fuel cell generated power
     return [f_h2_cons, v_fc, p_fc]
