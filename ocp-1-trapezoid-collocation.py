@@ -14,9 +14,9 @@ from utils import files
 Tf = 1440   # Final time (min)
 N = 90      # Number of control intervals
 
-M_0 = 0.65      # Initial volume of hydrogen (Nm3)
-M_min = 0.6     # Minimum volume of hydrogen (Nm3)
-M_max = 1       # Maximum volume of hydrogen (Nm3)
+M_0 = 0.65      # Initial volume of hydrogen (Nl)
+M_min = 0.6     # Minimum volume of hydrogen (Nl)
+M_max = 40      # Maximum volume of hydrogen (Nl)
 I_e_0 = 30      # Initial current (A)
 I_e_min = 1     # Minimum current (A)
 I_e_max = 100   # Maximum current (A)
