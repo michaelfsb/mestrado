@@ -13,20 +13,22 @@ for i in range(len(current)):
     h2_consumption.append(f_h2)
 
 # Plot the results
-# plt.plot(current, h2_consumption, label="H2 consumption")
-# plt.xlabel("Current (A)")
-# plt.ylabel("H2 consumption (Nl/min)")
-# plt.show()
+f1 = plt.figure(1)
+plt.plot(current, h2_consumption, label="H2 consumption")
+plt.xlabel("Current (A)")
+plt.ylabel("H2 consumption (Nl/min)")
 
+f2 = plt.figure(2)
 plt.plot(current, voltage, label="Voltage")
 plt.xlabel("Current (A)")
 plt.ylabel("Voltage (V)")
-plt.show()
 
-# plt.plot(current, power, label="Power")
-# plt.xlabel("Current (A)")
-# plt.ylabel("Power (W)")
-# plt.show()
+f3 = plt.figure(3)
+plt.plot(current, power, label="Power")
+plt.xlabel("Current (A)")
+plt.ylabel("Power (W)")
+
+plt.show()
 
 # Generate a Latex plot of the results (cant be used with plt.show() and plt.legend() functions)
 # import tikzplotlib

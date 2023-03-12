@@ -13,20 +13,22 @@ for i in range(len(current)):
     h2_production.append(f_h2)
 
 # Plot the results
+f1 = plt.figure(1)
 plt.plot(current, h2_production, label="H2 production")
 plt.xlabel("Current (A)")
 plt.ylabel("H2 production (Nl/min)")
+
+f2 = plt.figure(2)
+plt.plot(current, voltage, label="Voltage")
+plt.xlabel("Current (A)")
+plt.ylabel("Voltage (V)")
+
+f3 = plt.figure(3)
+plt.plot(current, power, label="Power")
+plt.xlabel("Current (A)")
+plt.ylabel("Power (W)")
+
 plt.show()
-
-# plt.plot(current, voltage, label="Voltage")
-# plt.xlabel("Current (A)")
-# plt.ylabel("Voltage (V)")
-# plt.show()s
-
-# plt.plot(current, power, label="Power")
-# plt.xlabel("Current (A)")
-# plt.ylabel("Power (W)")
-# plt.show()
 
 # Generate a Latex plot of the results (cant be used with plt.show() and plt.legend() functions)
 # import tikzplotlib
