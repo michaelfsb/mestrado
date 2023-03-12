@@ -10,7 +10,7 @@ ini = Tf
 fim = 2*Tf # Take second day
 
 sol_real = mat_contents['sol_real'][ini:fim]
-fdemanda = (mat_contents['carga_real'][ini:fim]-0.18)/60 # (Nm3/min)
+fdemanda = (mat_contents['carga_real'][ini:fim]-0.18)*(1000/60) # (Nm3/h) -> (Nl/min)
 t_file = np.arange(1,len(sol_real)+1,1)
 
 # Create interpolants
