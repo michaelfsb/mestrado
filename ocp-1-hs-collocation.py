@@ -128,23 +128,38 @@ x_opt = x_opt.full()
 u_opt = u_opt.full() 
 
 # Plot results
-t = t/60
-f_x_opt = interpolate.interp1d(t, x_opt, kind='cubic')
-f_u_opt = interpolate.interp1d(t, u_opt, kind='quadratic')
-t_new = np.arange(0, 24, 0.1)
+f_x_opt = interpolate.InterpolatedUnivariateSpline(t, x_opt, k=3) # k=2 is a quadratic spline
+f_u_opt = interpolate.InterpolatedUnivariateSpline(t, u_opt, k=2) # k=1 is a linear spline
+t_new = np.arange(0, Tf, 0.1)
 
 fig, axs = plt.subplots(2,1)
 fig.suptitle('Simulation Results: ' + optimzation_status + '\nCost: ' + str(sol['f']) + ' (W)')
 
-axs[0].plot(t, *u_opt, '.r', t_new, *f_u_opt(t_new), '-b')
+axs[0].plot(t/60, *u_opt, '.r', t_new/60, f_u_opt(t_new), '-b')
 axs[0].set_ylabel('Electrolyzer current [A]')
 axs[0].grid(axis='both',linestyle='-.')
 axs[0].set_xticks(np.arange(0, 26, 2))
 
-axs[1].plot(t, *x_opt, '.r', t_new, *f_x_opt(t_new), '-g')
+axs[1].plot(t/60, *x_opt, '.r', t_new/60, f_x_opt(t_new), '-g')
 axs[1].set_ylabel('Hydrogen [Nm3]')
 axs[1].set_xlabel('Time [h]')
 axs[1].grid(axis='both',linestyle='-.')
 axs[1].set_xticks(np.arange(0, 26, 2))
 
 plt.savefig(files.get_plot_file_name(__file__), bbox_inches='tight', dpi=300)
+
+# Evaluate the error
+f_x_opt_dot = f_x_opt.derivative()
+
+t = np.linspace(0, Tf, num=10*N, endpoint=True)
+
+error = f_x_opt_dot(t) - f(t, f_x_opt(t), f_u_opt(t))[0]
+
+# Plot error
+fig2 = plt.figure(2)
+fig2.suptitle('Erro in differential equations')
+plt.plot(t/60, error)
+plt.ylabel('Error')
+plt.xlabel('Time [h]')
+plt.grid(axis='both',linestyle='-.')
+plt.savefig(files.get_plot_error_file_name(__file__), bbox_inches='tight', dpi=300)

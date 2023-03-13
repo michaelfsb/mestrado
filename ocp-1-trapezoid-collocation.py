@@ -144,16 +144,10 @@ plt.savefig(files.get_plot_file_name(__file__), bbox_inches='tight', dpi=300)
 
 # Evaluate the error
 f_x_opt_dot = f_x_opt.derivative()
-f_u_opt_dot = f_u_opt.derivative()
 
 t = np.linspace(0, Tf, num=10*N, endpoint=True)
 
-x_opt_dot = f_x_opt_dot(t)
-u_opt_dot = f_u_opt_dot(t)
-x_opt = f_x_opt(t)
-u_opt = f_u_opt(t)
-
-error = x_opt_dot - f(t, x_opt, u_opt)[0]
+error = f_x_opt_dot(t) - f(t, f_x_opt(t), f_u_opt(t))[0]
 
 # Plot error
 fig2 = plt.figure(2)
