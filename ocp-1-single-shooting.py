@@ -120,7 +120,7 @@ optimzation_status = files.get_optimization_status(ipopt_log_file)
 
 # Plot results
 fig, axs = plt.subplots(2,1)
-fig.suptitle('Simulation results: ' + optimzation_status)
+fig.suptitle('Simulation Results: ' + optimzation_status + '\nCost: ' + str(sol['f']) + ' (W)')
 
 axs[0].step(ts, w_opt, 'g-', where ='post')
 axs[0].set_ylabel('Electrolyzer current [A]')

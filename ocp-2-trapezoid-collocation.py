@@ -133,7 +133,7 @@ f_u_opt = interpolate.interp1d(t, i_el_opt, kind='linear')
 t_new = np.arange(0, 24, 0.1)
 
 fig, axs = plt.subplots(2,1)
-fig.suptitle('Simulation Results: ' + optimzation_status)
+fig.suptitle('Simulation Results: ' + optimzation_status + '\nCost: ' + str(sol['f']) + ' (W)')
 
 axs[0].plot(t, i_el_opt, '.r', t_new, f_u_opt(t_new), '-b')
 axs[0].set_ylabel('Electrolyzer current [A]')
