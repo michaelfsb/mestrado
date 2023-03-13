@@ -11,7 +11,7 @@ from utils import files
 
 # Preliminaries
 Tf = 1440   # Final time (min)
-N = 90      # Number of control intervals
+N = 30      # Number of control intervals
 
 M_0 = 0.65      # Initial volume of hydrogen (Nm3)
 M_min = 0.6     # Minimum volume of hydrogen (Nm3)
