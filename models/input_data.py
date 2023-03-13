@@ -15,4 +15,4 @@ t_file = np.arange(1,len(sol_real)+1,1)
 
 # Create interpolants
 Irradiation = ca.interpolant("Irradiation", "bspline", [t_file], sol_real.flatten()) # Normalized irradiation
-HydrogenDemand = ca.interpolant("HydrogenDemand", "bspline", [t_file], fdemanda.flatten()) # (Nm3/h)
+HydrogenDemand = ca.interpolant("HydrogenDemand", "bspline", [t_file], fdemanda.flatten()) # (Nl/min)

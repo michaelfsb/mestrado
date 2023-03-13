@@ -1,10 +1,13 @@
 import numpy as np
 import matplotlib.pyplot as plt
+from scipy.integrate import trapezoid
 
 from models.input_data import Irradiation, HydrogenDemand
 
 # Plot Irradiation and HydrogenDemand
 t = np.arange(0, 1440, 1)
+
+total_demand = trapezoid(HydrogenDemand(t).full().flatten(), dx=1)
 
 f1 = plt.figure(1)
 plt.plot(t/60, Irradiation(t), label="Irradiation")
@@ -13,6 +16,7 @@ plt.ylabel("Irradiation")
 
 f2 = plt.figure(2)
 plt.plot(t/60, HydrogenDemand(t), label="HydrogenDemand")
+plt.suptitle("Total Hydrogen Demand: " + str(total_demand) + " Nl")
 plt.xlabel("Time (h)")
 plt.ylabel("HydrogenDemand (Nl/min)")
 
