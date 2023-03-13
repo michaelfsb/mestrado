@@ -16,7 +16,7 @@ for i in range(len(current)):
 f1 = plt.figure(1)
 plt.plot(current, h2_production, label="H2 production")
 plt.xlabel("Current (A)")
-plt.ylabel("H2 production (Nl/min)")
+plt.ylabel("H2 production (Nm3/min)")
 
 f2 = plt.figure(2)
 plt.plot(current, voltage, label="Voltage")

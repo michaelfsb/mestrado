@@ -26,7 +26,7 @@ def electrolyzer_model(i_el):
     v_etd = (R*t_el/F)*ca.asinh(.5*i_el_d/I_ao) + (R*t_el/F)*ca.asinh(.5*i_el_d/I_co) + i_el_d*delta_b/ro_b # Eletrode overpotential
     v_el_hom_ion = delta_b*i_el/(A_el*ro_b) # Ohmic overvoltage and ionic overpotential
 
-    f_h2_prd = (N_el*i_el/(F*1000))*h2_flow_converter("Nl/min") # Hydrogen production rate
+    f_h2_prd = (N_el*i_el/(F*1000))*h2_flow_converter("Nm3/min") # Hydrogen production rate
     v_el = N_el*(v_el_0 + v_etd + v_el_hom_ion) # Eletrolyzer voltage
     p_el = i_el*v_el # Eletrolyzer consumed power
 

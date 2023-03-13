@@ -16,8 +16,8 @@ plt.ylabel("Irradiation")
 
 f2 = plt.figure(2)
 plt.plot(t/60, HydrogenDemand(t), label="HydrogenDemand")
-plt.suptitle("Total Hydrogen Demand: " + str(total_demand) + " Nl")
+plt.suptitle("Total Hydrogen Demand: " + "{:4f}".format(total_demand) + " Nm3")
 plt.xlabel("Time (h)")
-plt.ylabel("HydrogenDemand (Nl/min)")
+plt.ylabel("HydrogenDemand (Nm3/min)")
 
 plt.show()
