@@ -147,7 +147,7 @@ f_x_opt_dot = f_x_opt.derivative()
 
 t = np.linspace(0, Tf, num=10*N, endpoint=True)
 
-error = f_x_opt_dot(t) - f(t, f_x_opt(t), f_u_opt(t))[0]
+error = f_x_opt_dot(t) - f(f_x_opt(t), f_u_opt(t), t)[0]
 
 # Plot error
 fig2 = plt.figure(2)
