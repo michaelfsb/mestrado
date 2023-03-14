@@ -118,23 +118,23 @@ optimzation_status = files.get_optimization_status(ipopt_log_file)
 # Retrieve the solution
 trajectories = ca.Function('trajectories', [w], [x_plot, u_plot], ['w'], ['x', 'u'])
 x_opt, u_opt = trajectories(sol['x'])
-x_opt = x_opt.full()
-u_opt = u_opt.full() 
+x_opt = x_opt.full().flatten()
+u_opt = u_opt.full().flatten()
 
 # Plot results
-f_x_opt = interpolate.InterpolatedUnivariateSpline(t, x_opt, k=2) # k=2 is a quadratic spline
-f_u_opt = interpolate.InterpolatedUnivariateSpline(t, u_opt, k=1) # k=1 is a linear spline
+f_x_opt = interpolate.interp1d(t, x_opt, kind=2) # k=2 is a quadratic spline
+f_u_opt = interpolate.interp1d(t, u_opt, kind=1) # k=1 is a linear spline
 t_new = np.arange(0, Tf, 1)
 
 fig, axs = plt.subplots(2,1)
 fig.suptitle('Simulation Results: ' + optimzation_status + '\nCost: ' + str(sol['f']) + ' (W)')
 
-axs[0].plot(t/60, *u_opt, '.r', t_new/60, f_u_opt(t_new), '-b')
+axs[0].plot(t/60, u_opt, '.r', t_new/60, f_u_opt(t_new), '-b')
 axs[0].set_ylabel('Electrolyzer current [A]')
 axs[0].grid(axis='both',linestyle='-.')
 axs[0].set_xticks(np.arange(0, 26, 2))
 
-axs[1].plot(t/60, *x_opt, '.r', t_new/60, f_x_opt(t_new), '-g')
+axs[1].plot(t/60, x_opt, '.r', t_new/60, f_x_opt(t_new), '-g')
 axs[1].set_ylabel('Hydrogen [Nm3]')
 axs[1].set_xlabel('Time [h]')
 axs[1].grid(axis='both',linestyle='-.')
@@ -143,16 +143,14 @@ axs[1].set_xticks(np.arange(0, 26, 2))
 plt.savefig(files.get_plot_file_name(__file__), bbox_inches='tight', dpi=300)
 
 # Evaluate the error
-f_x_opt_dot = f_x_opt.derivative()
-
-t = np.linspace(0, Tf, num=10*N, endpoint=True)
-
-error = f_x_opt_dot(t) - f(f_x_opt(t), f_u_opt(t), t)[0]
+te = np.linspace(0, Tf, num=2*N, endpoint=True)
+f_interpolated = interpolate.interp1d(t, f(x_opt, u_opt, t)[0].full().flatten(), kind=1)
+error = f(f_x_opt(te), f_u_opt(te), te)[0] - f_interpolated(te)
 
 # Plot error
 fig2 = plt.figure(2)
 fig2.suptitle('Erro in differential equations')
-plt.plot(t/60, error)
+plt.plot(te/60, error, '-', t/60, np.zeros(len(t)), '.r')
 plt.ylabel('Error')
 plt.xlabel('Time [h]')
 plt.grid(axis='both',linestyle='-.')
