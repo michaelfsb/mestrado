@@ -11,11 +11,10 @@ from models.electrolyzer import electrolyzer_model
 from models.tank import thank_model
 from models.input_data import Irradiation, HydrogenDemand
 from utils import files
-from utils.interpolations import control_spline
 
 # Preliminaries
 Tf = 1440   # Final time (min)
-N = 38      # Number of control intervals
+N = 90      # Number of control intervals
 
 M_0 = 0.65      # Initial volume of hydrogen (Nm3)
 M_min = 0.6     # Minimum volume of hydrogen (Nm3)
@@ -128,8 +127,6 @@ x_opt, u_opt = trajectories(sol['x'])
 x_opt = x_opt.full().flatten()
 u_opt = u_opt.full().flatten()
 
-[taa, uaa] = control_spline(t, u_opt)
-
 # Plot results
 t = np.linspace(0, Tf, num=2*N-1, endpoint=True)
 f_x_opt = interpolate.interp1d(t, x_opt, kind=3) # k=3 is a cubic spline
@@ -140,7 +137,7 @@ fig, axs = plt.subplots(2,1)
 fig.suptitle('Simulation Results: ' + optimzation_status + '\nCost: ' + str(sol['f']) + ' (W)')
 
 #axs[0].plot(t/60, u_opt, '.r')
-axs[0].plot(t/60, u_opt, '.r', np.array(taa)/60, np.array(uaa), '-b')
+axs[0].plot(t/60, u_opt, '.r', t_new/60, f_u_opt(t_new), '-b')
 axs[0].set_ylabel('Electrolyzer current [A]')
 axs[0].grid(axis='both',linestyle='-.')
 axs[0].set_xticks(np.arange(0, 26, 2))
