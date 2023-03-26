@@ -38,13 +38,13 @@ f_l = (p_el - p_ps)**2
 
 # Creat NPL problem
 f = ca.Function('f', [v_h2, i_el, time], [v_h2_dot, f_l], ['x', 'u', 't'], ['x_dot', 'L'])
-t = np.linspace(0, Tf, num=2*N+1, endpoint=True)
-h = [t[k+1]-t[k] for k in range(t.size-1)]
+t = np.linspace(0, Tf, num=N, endpoint=True)
+h = Tf/N
 
 X = []
 U = []
 
-for k in np.arange(0, N+.5, .5):
+for k in np.arange(0, N-.5, .5):
     X += [ca.MX.sym('X_' + str(k))]
     U += [ca.MX.sym('U_' + str(k))]
 
@@ -52,18 +52,18 @@ L = 0
 g = []
 lbg = []
 ubg = []
-for k in np.arange(0, 2*N, 2):
+for k in np.arange(0, 2*N-2, 2):
     i = int(k/2)
-    f_k_0, w_k_0 = f(X[k], U[k], t[k])
-    f_k_1, w_k_1 = f(X[k+1], U[k+1], t[k+1])
-    f_k_2, w_k_2 = f(X[k+2], U[k+2], t[k+2])
-    L = L + h[i]*(w_k_0 + 4*w_k_1 + w_k_2)/6
+    f_k_0, w_k_0 = f(X[k], U[k], t[i])
+    f_k_1, w_k_1 = f(X[k+1], U[k+1], t[i]+h/2)
+    f_k_2, w_k_2 = f(X[k+2], U[k+2], t[i+1])
+    L = L + h*(w_k_0 + 4*w_k_1 + w_k_2)/6
 
     # Add equality constraint
-    g +=  [h[i]*(f_k_0 + 4*f_k_1 + f_k_2)/6 + X[k] - X[k+2]]
+    g +=  [X[k+2] - X[k] - h*(f_k_0 + 4*f_k_1 + f_k_2)/6]
     lbg += [0]
     ubg += [0]
-    g +=  [.5*(X[k+2] + X[k]) + h[i]*(f_k_0 - f_k_1)/8 - X[k+1]]
+    g +=  [X[k+1] - (X[k+2] + X[k])/2 - h*(f_k_0 - f_k_2)/8]
     lbg += [0]
     ubg += [0]
 
@@ -76,7 +76,7 @@ ubw = []
 x_plot = []
 u_plot = []
 
-for k in range(2*N+1):
+for k in range(2*N-1):
     # New NLP variable for the control
     w += [U[k]]
     lbw += [I_e_min]
@@ -128,6 +128,7 @@ x_opt = x_opt.full().flatten()
 u_opt = u_opt.full().flatten()
 
 # Plot results
+t = np.linspace(0, Tf, num=2*N-1, endpoint=True)
 f_x_opt = interpolate.interp1d(t, x_opt, kind=3) # k=3 is a cubic spline
 f_u_opt = interpolate.interp1d(t, u_opt, kind=2) # k=2 is a quadratic spline
 t_new = np.arange(0, Tf, 0.1)
@@ -149,14 +150,14 @@ axs[1].set_xticks(np.arange(0, 26, 2))
 plt.savefig(files.get_plot_file_name(__file__), bbox_inches='tight', dpi=300)
 
 # Evaluate the error
-te = np.linspace(0, Tf, num=2*N, endpoint=True)
+te = np.linspace(0, Tf, num=10*N, endpoint=True)
 f_interpolated = interpolate.interp1d(t, f(x_opt, u_opt, t)[0].full().flatten(), kind=2)
 error = f(f_x_opt(te), f_u_opt(te), te)[0] - f_interpolated(te)
 
 # Plot error
 fig2 = plt.figure(2)
 fig2.suptitle('Erro in differential equations')
-plt.plot(te/60, error, '-', t/60, np.zeros(len(t)), '.r')
+plt.plot(te/60, error, '.', t/60, np.zeros(len(t)), '.r')
 plt.ylabel('Error')
 plt.xlabel('Time [h]')
 plt.grid(axis='both',linestyle='-.')
