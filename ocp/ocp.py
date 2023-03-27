@@ -1,5 +1,7 @@
 import casadi as ca
+from matplotlib import pyplot as plt
 import numpy as np
+from scipy import interpolate
 from models.electrolyzer import electrolyzer_model
 from models.input_data import HydrogenDemand, Irradiation
 from models.photovoltaic_panel import pv_model
@@ -137,8 +139,6 @@ class ocp():
             lbg=self.__npl.lbg, 
             ubg=self.__npl.ubg)
         
-        print('Optimal cost: ' + str(self.__sol['f']))
-
         # Retrieve the solution
         trajectories = ca.Function(
             'trajectories', 
@@ -150,13 +150,39 @@ class ocp():
         self.solution = type('solution', (object,), {})()
         self.solution.x = x_opt.full().flatten()
         self.solution.u = u_opt.full().flatten()
+        self.solution.t = np.linspace(0, self.time.final, num=2*self.time.nGrid-1, endpoint=True)
+        self.solution.f_x = interpolate.interp1d(self.solution.t, self.solution.x, kind=3)
+        self.solution.f_u = interpolate.interp1d(self.solution.t, self.solution.u, kind=2) 
+        
+        print('Optimal cost: ' + str(self.__sol['f']))
 
-    
+    def plot_solution(self, t=None):
+        if t is None:
+            t = np.linspace(0, self.time.final, num=10*self.time.nGrid, endpoint=True)
+
+        fig, axs = plt.subplots(2,1)
+        #fig.suptitle('Simulation Results: ' + optimzation_status + '\nCost: ' + str(self.__sol['f']))
+
+        axs[0].plot(t/60, self.solution.f_u(t), '-b')
+        axs[0].set_ylabel('Electrolyzer current [A]')
+        axs[0].grid(axis='both',linestyle='-.')
+        #axs[0].set_xticks(np.arange(0, 26, 2))
+
+        axs[1].plot(t/60, self.solution.f_x(t), '-g')
+        axs[1].set_ylabel('Hydrogen [Nm3]')
+        axs[1].set_xlabel('Time [h]')
+        axs[1].grid(axis='both',linestyle='-.')
+        #axs[1].set_xticks(np.arange(0, 26, 2))
+
+        plt.show()
+        #plt.savefig(files.get_plot_file_name(__file__), bbox_inches='tight', dpi=300)
+
+   
 
 # Declare variables
 v_h2 = state(name='v_h2', min=0.6, max=2.5) 
 i_el = control(name='i_el', min=1, max=100)        
-t = time(initial=0, final=1440, nGrid=15)        
+t = time(initial=0, final=1440, nGrid=80)        
 
 ocp = ocp(controls=i_el, states=v_h2, time=t)
 
@@ -174,3 +200,5 @@ ocp.set_langrange_cost(l_cost=f_l)
 ocp.set_guess(control=30, state=0.65)
 
 ocp.solve()
+
+ocp.plot_solution()
