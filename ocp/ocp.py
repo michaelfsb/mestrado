@@ -74,11 +74,11 @@ class ocp():
             i = int(k/2)
 
             # Defects
-            f_k_0 = self.dynamic(self.__X[i], self.__U[i], self.tGrid[i])
-            f_k_1 = self.dynamic(self.__X[i+1], self.__U[i+1], self.tGrid[i]+self.time.dt/2)
-            f_k_2 = self.dynamic(self.__X[i+1], self.__U[i+1], self.tGrid[i+1])
+            f_k_0 = self.dynamic(self.__X[k], self.__U[k], self.tGrid[i])
+            f_k_1 = self.dynamic(self.__X[k+1], self.__U[k+1], self.tGrid[i]+self.time.dt/2)
+            f_k_2 = self.dynamic(self.__X[k+2], self.__U[k+2], self.tGrid[i+1])
             
-            self.__npl.g += [self.__X[i+2] - self.__X[i] - self.time.dt*(f_k_0 + 4*f_k_1 + f_k_2)/6]
+            self.__npl.g += [self.__X[k+2] - self.__X[k] - self.time.dt*(f_k_0 + 4*f_k_1 + f_k_2)/6]
             self.__npl.lbg += [0]
             self.__npl.ubg += [0]
             self.__npl.g += [self.__X[k+1] - (self.__X[k+2] + self.__X[k])/2 - self.time.dt*(f_k_0 - f_k_2)/8]
@@ -86,9 +86,9 @@ class ocp():
             self.__npl.ubg += [0]
 
             # Langrange cost
-            w_k_0 = self.langrange_cost(self.__X[i], self.__U[i], self.tGrid[i])
-            w_k_1 = self.langrange_cost(self.__X[i+1], self.__U[i+1], self.tGrid[i]+self.time.dt/2)
-            w_k_2 = self.langrange_cost(self.__X[i+1], self.__U[i+1], self.tGrid[i+1])
+            w_k_0 = self.langrange_cost(self.__X[k], self.__U[k], self.tGrid[i])
+            w_k_1 = self.langrange_cost(self.__X[k+1], self.__U[k+1], self.tGrid[i]+self.time.dt/2)
+            w_k_2 = self.langrange_cost(self.__X[k+2], self.__U[k+2], self.tGrid[i+1])
 
             self.__npl.f += self.time.dt*(w_k_0 + 4*w_k_1 + w_k_2)/6
 
