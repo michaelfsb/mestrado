@@ -177,28 +177,23 @@ class ocp():
         plt.show()
         #plt.savefig(files.get_plot_file_name(__file__), bbox_inches='tight', dpi=300)
 
-   
+    def evaluate_error(self, t=None):
+        if t is None:
+            t = []
+            for i in range(0, len(self.solution.t)-2, 2):
+                t += np.linspace(self.solution.t[i], self.solution.t[i+1], 10, endpoint=False).tolist()
+                t += np.linspace(self.solution.t[i+1], self.solution.t[i+2], 10, endpoint=False).tolist()
+            t += [self.time.final]
 
-# Declare variables
-v_h2 = state(name='v_h2', min=0.6, max=2.5) 
-i_el = control(name='i_el', min=1, max=100)        
-t = time(initial=0, final=1440, nGrid=80)        
+        f_interpolated = interpolate.interp1d(self.solution.t, self.dynamic(self.solution.x, self.solution.u, self.solution.t).full().flatten(), kind=2)
+        error = self.dynamic(self.solution.f_x(t), self.solution.f_u(t), t) - f_interpolated(t)
 
-ocp = ocp(controls=i_el, states=v_h2, time=t)
-
-# Models equations
-[f_h2, v_el, p_el] = electrolyzer_model(i_el.value) 
-[i_ps, v_ps, p_ps] = pv_model(Irradiation(t.value)) 
-v_h2_dot = thank_model(f_h2, HydrogenDemand(t.value)) 
-
-# Lagrange cost function
-f_l = (p_el - p_ps)**2
-
-ocp.set_dynamic(dynamic=v_h2_dot)
-ocp.set_langrange_cost(l_cost=f_l)
-
-ocp.set_guess(control=30, state=0.65)
-
-ocp.solve()
-
-ocp.plot_solution()
+        # Plot error
+        fig2 = plt.figure(2)
+        fig2.suptitle('Erro in differential equations')
+        plt.plot(t, error, self.solution.t, np.zeros(len(self.solution.t)), '.r')
+        plt.ylabel('Error')
+        plt.xlabel('Time [h]')
+        plt.grid(axis='both',linestyle='-.')
+        plt.show()
+        #plt.savefig(files.get_plot_error_file_name(__file__), bbox_inches='tight', dpi=300)
