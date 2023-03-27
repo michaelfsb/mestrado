@@ -2,11 +2,7 @@ import casadi as ca
 from matplotlib import pyplot as plt
 import numpy as np
 from scipy import interpolate
-from models.electrolyzer import electrolyzer_model
-from models.input_data import HydrogenDemand, Irradiation
-from models.photovoltaic_panel import pv_model
 
-from models.tank import thank_model
 from utils import files
 
 class time():
@@ -33,7 +29,8 @@ class state():
         self.max = max
 
 class ocp():
-    def __init__(self, controls: control, states: state, time: time):
+    def __init__(self, name: str, controls: control, states: state, time: time):
+        self.name: name
         self.controls = controls
         self.states = states
         self.time = time
@@ -122,7 +119,7 @@ class ocp():
         prob = {'f': self.__npl.f, 'x': self.__npl.x, 'g': self.__npl.g}
 
         # NLP solver options
-        self.__ipopt_log_file = files.get_log_file_name(__file__)
+        self.__ipopt_log_file = 'results/'+self.name+'.txt'
         opts = {"ipopt.output_file" : self.__ipopt_log_file}
 
         # Use IPOPT as the NLP solver
@@ -155,6 +152,14 @@ class ocp():
         self.solution.f_u = interpolate.interp1d(self.solution.t, self.solution.u, kind=2) 
         
         print('Optimal cost: ' + str(self.__sol['f']))
+    
+    def get_optimization_status(self):
+        optimzation_status = ''
+        with open(self.__ipopt_log_file) as file:
+            for line in file:
+                if line.startswith('EXIT'):
+                    optimzation_status = line.strip()[5:-1]
+        return optimzation_status
 
     def plot_solution(self, t=None):
         if t is None:
