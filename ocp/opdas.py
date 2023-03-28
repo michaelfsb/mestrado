@@ -20,7 +20,7 @@ class control():
         self.value = ca.MX.sym(name)
         self.min = min
         self.max = max
-    
+
 class state():
     def __init__(self, name: str, min: int, max: int):
         self.name = name
@@ -28,19 +28,59 @@ class state():
         self.min = min
         self.max = max
 
+def get_variables_values(variables):
+    if isinstance(variables, list):
+        values = []
+        for variable in variables:
+            values.append(variable.value)
+        values = ca.vcat(values)
+    else:
+        values = variables.value
+    return values
+
+def get_variables_min(variables):
+    if isinstance(variables, list):
+        values = []
+        for variable in variables:
+            values.append(variable.min)
+        values = ca.vcat(values)
+    else:
+        values = variables.min
+    return values
+
+def get_variables_max(variables):
+    if isinstance(variables, list):
+        values = []
+        for variable in variables:
+            values.append(variable.max)
+        values = ca.vcat(values)
+    else:
+        values = variables.max
+    return values
+
 class ocp():
     def __init__(self, name: str, controls: control, states: state, time: time):
-        self.name: name
+        self.name = name
         self.controls = controls
         self.states = states
         self.time = time
         self.tGrid = np.linspace(time.initial, time.final, num=time.nGrid, endpoint=True)
+        
+        if isinstance(controls, list):
+            self.nControls = len(controls)
+        else:
+            self.nControls = 1
+
+        if isinstance(states, list):
+            self.nStates = len(states)
+        else:
+            self.nStates = 1
 
     def set_dynamic(self, dynamic):
-        self.dynamic = ca.Function('F', [self.states.value, self.controls.value, self.time.value], [dynamic], ['x', 'u', 't'], ['x_dot'])
+        self.dynamic = ca.Function('F', [get_variables_values(self.states), get_variables_values(self.controls), self.time.value], [dynamic], ['x', 'u', 't'], ['x_dot'])
     
     def set_langrange_cost(self, l_cost):
-        self.langrange_cost = ca.Function('L', [self.states.value, self.controls.value, self.time.value], [l_cost], ['x', 'u', 't'], ['L'])
+        self.langrange_cost = ca.Function('L', [get_variables_values(self.states),get_variables_values(self.controls), self.time.value], [l_cost], ['x', 'u', 't'], ['L'])
 
     def set_guess(self, control, state):
         self.guess = type('guess', (object,), {})()
@@ -63,8 +103,8 @@ class ocp():
         self.__X = []
         self.__U = []
         for k in np.arange(0, self.time.nGrid-.5, .5):
-            self.__X += [ca.MX.sym('X_' + str(k))]
-            self.__U += [ca.MX.sym('U_' + str(k))]
+            self.__X += [ca.MX.sym('X_' + str(k), self.nStates)]
+            self.__U += [ca.MX.sym('U_' + str(k), self.nControls)]
 
     def __build_npl(self):
         self.__create_internal_variables()
@@ -93,13 +133,13 @@ class ocp():
 
         for k in range(2*self.time.nGrid-1):
             self.__npl.x += [self.__U[k]]
-            self.__npl.lbx += [self.controls.min]
-            self.__npl.ubx += [self.controls.max]
+            self.__npl.lbx += [get_variables_min(self.controls)]
+            self.__npl.ubx += [get_variables_max(self.controls)]
             self.__npl.x0 += [self.guess.controls]
 
             self.__npl.x   += [self.__X[k]]
-            self.__npl.lbx += [self.states.min]
-            self.__npl.ubx += [self.states.max]
+            self.__npl.lbx += [get_variables_min(self.states)]
+            self.__npl.ubx += [get_variables_max(self.states)]
             self.__npl.x0  += [self.guess.states]
 
             self.__plot.x += [self.__X[k]]
@@ -200,5 +240,5 @@ class ocp():
         plt.ylabel('Error')
         plt.xlabel('Time [h]')
         plt.grid(axis='both',linestyle='-.')
-        plt.show()
-        #plt.savefig(files.get_plot_error_file_name(__file__), bbox_inches='tight', dpi=300)
+        #plt.show()
+        plt.savefig(files.get_plot_error_file_name(__file__), bbox_inches='tight', dpi=300)
