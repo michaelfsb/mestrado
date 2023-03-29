@@ -5,7 +5,7 @@ from scipy import interpolate
 
 from utils import files
 
-class time():
+class Time():
     def __init__(self, initial: int, final: int, nGrid: int):
         self.name = 'time'
         self.value = ca.MX.sym(self.name)
@@ -14,73 +14,74 @@ class time():
         self.nGrid = nGrid
         self.dt = (final - initial)/nGrid
 
-class control():
-    def __init__(self, name: str, min: int, max: int):
+class Variable:
+    def __init__(self, name, max, min):
         self.name = name
-        self.value = ca.MX.sym(name)
-        self.min = min
+        self.value = ca.MX.sym(self.name)
         self.max = max
-
-class state():
-    def __init__(self, name: str, min: int, max: int):
-        self.name = name
-        self.value = ca.MX.sym(name)
         self.min = min
-        self.max = max
 
-def get_variables_values(variables):
-    if isinstance(variables, list):
+class VariableList:
+    def __init__(self):
+        self.variables = []
+
+    def __len__(self):
+        return len(self.variables)
+    
+    def __getitem__(self, key):
+        return self.get_variable(key).value
+    
+    def add_variable(self, name, max, min):
+        variable = Variable(name, max, min)
+        self.variables.append(variable)
+
+    def remove_variable(self, name):
+        for variable in self.variables:
+            if variable.name == name:
+                self.variables.remove(variable)
+                return True
+        return False
+
+    def get_variable(self, name):
+        for variable in self.variables:
+            if variable.name == name:
+                return variable
+        return None
+
+    def get_all_variables(self):
+        return self.variables
+    
+    def get_all_values(self):
         values = []
-        for variable in variables:
+        for variable in self.variables:
             values.append(variable.value)
-        values = ca.vcat(values)
-    else:
-        values = variables.value
-    return values
+        return values
+    
+    def get_all_min_values(self):
+        min_values = []
+        for variable in self.variables:
+            min_values.append(variable.min)
+        return min_values
+    
+    def get_all_max_values(self):
+        max_values = []
+        for variable in self.variables:
+            max_values.append(variable.max)
+        return max_values
 
-def get_variables_min(variables):
-    if isinstance(variables, list):
-        values = []
-        for variable in variables:
-            values.append(variable.min)
-        values = ca.vcat(values)
-    else:
-        values = variables.min
-    return values
-
-def get_variables_max(variables):
-    if isinstance(variables, list):
-        values = []
-        for variable in variables:
-            values.append(variable.max)
-        values = ca.vcat(values)
-    else:
-        values = variables.max
-    return values
-
-class ocp():
-    def __init__(self, name: str, controls: control, states: state, time: time):
+class OptimalControlProblem():
+    def __init__(self, name: str, controls: VariableList, states: VariableList, time: Time):
         self.name = name
         self.controls = controls
         self.states = states
         self.time = time
         self.tGrid = np.linspace(time.initial, time.final, num=time.nGrid, endpoint=True)
         
-        if isinstance(controls, list):
-            self.nControls = len(controls)
-        else:
-            self.nControls = 1
-
-        if isinstance(states, list):
-            self.nStates = len(states)
-        else:
-            self.nStates = 1
-
     def set_dynamic(self, dynamic):
-        self.dynamic = ca.Function('F', [get_variables_values(self.states), get_variables_values(self.controls), self.time.value], [dynamic], ['x', 'u', 't'], ['x_dot'])
+        self.dynamic = ca.Function('F', [ca.hcat(self.states.get_all_values()), ca.hcat(self.controls.get_all_values()), self.time.value], [dynamic], ['x', 'u', 't'], ['x_dot'])
     
     def set_langrange_cost(self, l_cost):
-        self.langrange_cost = ca.Function('L', [get_variables_values(self.states),get_variables_values(self.controls), self.time.value], [l_cost], ['x', 'u', 't'], ['L'])
+        self.langrange_cost = ca.Function('L', [ca.hcat(self.states.get_all_values()), ca.hcat(self.controls.get_all_values()), self.time.value], [l_cost], ['x', 'u', 't'], ['L'])
 
     def set_guess(self, control, state):
         self.guess = type('guess', (object,), {})()
@@ -103,8 +104,8 @@ class ocp():
         self.__X = []
         self.__U = []
         for k in np.arange(0, self.time.nGrid-.5, .5):
-            self.__X += [ca.MX.sym('X_' + str(k), self.nStates)]
-            self.__U += [ca.MX.sym('U_' + str(k), self.nControls)]
+            self.__X += [ca.MX.sym('X_' + str(k), len(self.states))]
+            self.__U += [ca.MX.sym('U_' + str(k), len(self.controls))]
 
     def __build_npl(self):
         self.__create_internal_variables()
@@ -133,13 +134,13 @@ class ocp():
 
         for k in range(2*self.time.nGrid-1):
             self.__npl.x += [self.__U[k]]
-            self.__npl.lbx += [get_variables_min(self.controls)]
-            self.__npl.ubx += [get_variables_max(self.controls)]
+            self.__npl.lbx += self.controls.get_all_min_values()
+            self.__npl.ubx += self.controls.get_all_max_values()
             self.__npl.x0 += [self.guess.controls]
 
             self.__npl.x   += [self.__X[k]]
-            self.__npl.lbx += [get_variables_min(self.states)]
-            self.__npl.ubx += [get_variables_max(self.states)]
+            self.__npl.lbx += self.states.get_all_min_values()
+            self.__npl.ubx += self.states.get_all_max_values()
             self.__npl.x0  += [self.guess.states]
 
             self.__plot.x += [self.__X[k]]

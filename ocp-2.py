@@ -7,8 +7,11 @@ from models.tank import thank_model
 
 t = time(initial=0, final=1440, nGrid=100)
 v_h2 = state(name='v_h2', min=0.6, max=2.5)
+controls = [control(name='i_el', min=1, max=100), control(name='s_el', min=0, max=1)]
 i_el = control(name='i_el', min=1, max=100)
 s_el = control(name='s_el', min=0, max=1)
+
+controls.get_values()
 
 problem = ocp(name='ocp-3', controls=[i_el, s_el], states=v_h2, time=t)
 
