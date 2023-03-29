@@ -8,10 +8,10 @@ from models.tank import thank_model
 t = Time(initial=0, final=1440, nGrid=100)
 
 states = VariableList()
-states.add_variable(name='v_h2', min=0.6, max=2.5)
+states.add(name='v_h2', min=0.6, max=2.5)
 
 controls = VariableList()
-controls.add_variable(name='i_el', min=1, max=100)
+controls.add(name='i_el', min=1, max=100)
 
 problem = OptimalControlProblem(name='ocp-1', controls=controls, states=states, time=t)
 
@@ -23,8 +23,8 @@ v_h2_dot = thank_model(ca.if_else(controls['i_el']>20, f_h2, 0), HydrogenDemand(
 # Lagrange cost function
 f_l = (p_el - p_ps)**2
 
-problem.set_dynamic(dynamic=v_h2_dot)
-problem.set_langrange_cost(l_cost=f_l)
+problem.set_dynamic(v_h2_dot)
+problem.set_langrange_cost(f_l)
 
 problem.set_guess(control=30, state=0.65)
 

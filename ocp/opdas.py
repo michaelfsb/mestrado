@@ -29,26 +29,26 @@ class VariableList:
         return len(self.variables)
     
     def __getitem__(self, key):
-        return self.get_variable(key).value
+        return self.get(key).value
     
-    def add_variable(self, name, max, min):
+    def add(self, name, max, min):
         variable = Variable(name, max, min)
         self.variables.append(variable)
 
-    def remove_variable(self, name):
+    def remove(self, name):
         for variable in self.variables:
             if variable.name == name:
                 self.variables.remove(variable)
                 return True
         return False
 
-    def get_variable(self, name):
+    def get(self, name):
         for variable in self.variables:
             if variable.name == name:
                 return variable
         return None
 
-    def get_all_variables(self):
+    def get_all(self):
         return self.variables
     
     def get_all_values(self):
@@ -104,8 +104,15 @@ class OptimalControlProblem():
         self.__X = []
         self.__U = []
         for k in np.arange(0, self.time.nGrid-.5, .5):
-            self.__X += [ca.MX.sym('X_' + str(k), len(self.states))]
-            self.__U += [ca.MX.sym('U_' + str(k), len(self.controls))]
+            variable_X = []
+            for j in range(len(self.states)):
+                variable_X += [ca.MX.sym('X_' + str(j) + '_' + str(k))]
+            self.__X += variable_X
+
+            variable_U = []
+            for j in range(len(self.controls)):
+                variable_U += [ca.MX.sym('U_' + str(j) + '_' + str(k))]
+            self.__U += variable_U
 
     def __build_npl(self):
         self.__create_internal_variables()
