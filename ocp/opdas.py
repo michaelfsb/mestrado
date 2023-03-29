@@ -68,6 +68,135 @@ class VariableList:
         for variable in self.variables:
             max_values.append(variable.max)
         return max_values
+    
+class NonlinearProgrammingProblem():
+    def __init__(self, option=None):
+        self.option = option
+        self.f = 0
+        self.g = []
+        self.x = []
+        self.x0 = []
+        self.lbg = []
+        self.ubg = []
+        self.lbx = []
+        self.ubx = []
+    
+    def create_variables(self, nControls, nStates, nTime):
+        self.__plot = type('plot', (object,), {})()
+        self.__plot.x = []
+        self.__plot.u = []
+        self.__X = []
+        self.__U = []
+
+        for k in np.arange(0, nTime-.5, .5):
+            variable_X = []
+            for j in range(nControls):
+                variable_X += [ca.MX.sym('X_' + str(j) + '_' + str(k))]
+            self.__X += variable_X
+
+            variable_U = []
+            for j in range(nStates):
+                variable_U += [ca.MX.sym('U_' + str(j) + '_' + str(k))]
+            self.__U += variable_U
+    
+    def add_constraint(self, g, lbg, ubg):
+        self.g += [g]
+        self.lbg += [lbg]
+        self.ubg += [ubg]
+
+    def add_variable(self, x, max, min, guess=None):
+        if guess == None:
+            guess = (max+min)/2
+
+        self.x += [x]
+        self.lbx += [min]
+        self.ubx += [max]
+        self.x0 += [guess]
+
+    def build_npl(self, f: ca.Function, l: ca.Function, controls: VariableList, states: VariableList, tGrid, guess):
+        self.create_variables(len(controls), len(states), len(tGrid))
+
+        for k in np.arange(0, 2*len(tGrid) - 2, 2):
+            i = int(k/2)
+            dt = tGrid[i+1]-tGrid[i]
+
+            # Defects
+            f_k_0 = f(self.__X[k], self.__U[k], tGrid[i])
+            f_k_1 = f(self.__X[k+1], self.__U[k+1], tGrid[i] + dt/2)
+            f_k_2 = f(self.__X[k+2], self.__U[k+2], tGrid[i+1])
+
+            g = self.__X[k+2] - self.__X[k] - dt*(f_k_0 + 4*f_k_1 + f_k_2)/6
+            self.add_constraint(g, 0, 0)
+            
+            g = self.__X[k+1] - (self.__X[k+2] + self.__X[k])/2 - dt*(f_k_0 - f_k_2)/8
+            self.add_constraint(g, 0, 0)
+
+            # Langrange cost
+            w_k_0 = l(self.__X[k], self.__U[k], tGrid[i])
+            w_k_1 = l(self.__X[k+1], self.__U[k+1], tGrid[i] + dt/2)
+            w_k_2 = l(self.__X[k+2], self.__U[k+2], tGrid[i+1])
+
+            self.f += dt*(w_k_0 + 4*w_k_1 + w_k_2)/6
+
+        for k in range(2*len(tGrid) - 1):
+            self.add_variable(
+                self.__U[k], 
+                controls.get_all_max_values()[0], 
+                controls.get_all_min_values()[0], 
+                guess.controls)
+
+            self.add_variable(
+                self.__X[k],
+                states.get_all_max_values()[0],
+                states.get_all_min_values()[0],
+                guess.states)
+            
+            self.__plot.x += [self.__X[k]]
+            self.__plot.u += [self.__U[k]]
+
+        # Set the initial condition for the state
+        self.lbx[1] = guess.states
+        self.ubx[1] = guess.states
+
+        # Concatenate vectors
+        self.x = ca.vertcat(*self.x)
+        self.g = ca.vertcat(*self.g)
+        self.__plot.x = ca.horzcat(*self.__plot.x)
+        self.__plot.u = ca.horzcat(*self.__plot.u)
+
+        # Creat NPL Solver
+        prob = {'f': self.f, 'x': self.x, 'g': self.g}
+
+        # NLP solver options
+        #self.__ipopt_log_file = 'results/'+self.name+'.txt'
+        self.__ipopt_log_file = 'log.txt'
+        opts = {"ipopt.output_file" : self.__ipopt_log_file}
+
+        # Use IPOPT as the NLP solver
+        self.solver = ca.nlpsol('solver', 'ipopt', prob, opts)
+
+    
+    def solve(self):
+        self.__sol = self.solver(
+            x0=self.x0, 
+            lbx=self.lbx, 
+            ubx=self.ubx, 
+            lbg=self.lbg, 
+            ubg=self.ubg)
+        
+        trajectories = ca.Function(
+            'trajectories', 
+            [self.x], 
+            [self.__plot.x, self.__plot.u], 
+            ['w'], 
+            ['x', 'u'])
+        
+        x_opt, u_opt = trajectories(self.__sol['x'])
+        x_opt = x_opt.full().flatten()
+        u_opt = u_opt.full().flatten()
+        
+        return [self.__sol['f'], x_opt, u_opt]	
+
 
 class OptimalControlProblem():
     def __init__(self, name: str, controls: VariableList, states: VariableList, time: Time):
@@ -76,130 +205,56 @@ class OptimalControlProblem():
         self.states = states
         self.time = time
         self.tGrid = np.linspace(time.initial, time.final, num=time.nGrid, endpoint=True)
+        self.npl = NonlinearProgrammingProblem()
         
     def set_dynamic(self, dynamic):
-        self.dynamic = ca.Function('F', [ca.hcat(self.states.get_all_values()), ca.hcat(self.controls.get_all_values()), self.time.value], [dynamic], ['x', 'u', 't'], ['x_dot'])
+        self.dynamic = ca.Function(
+            'F', 
+            [ca.hcat(self.states.get_all_values()), ca.hcat(self.controls.get_all_values()), self.time.value],
+            [dynamic], 
+            ['x', 'u', 't'], 
+            ['x_dot'])
     
     def set_langrange_cost(self, l_cost):
-        self.langrange_cost = ca.Function('L', [ca.hcat(self.states.get_all_values()), ca.hcat(self.controls.get_all_values()), self.time.value], [l_cost], ['x', 'u', 't'], ['L'])
+        self.langrange_cost = ca.Function(
+            'L', 
+            [ca.hcat(self.states.get_all_values()), ca.hcat(self.controls.get_all_values()), self.time.value],
+            [l_cost],
+            ['x', 'u', 't'],
+            ['L'])
+    
+    def set_mayer_cost(self, m_cost):
+        self.mayer_cost = ca.Function('M', 
+            [ca.hcat(self.states.get_all_values()), ca.hcat(self.controls.get_all_values()), self.time.value],
+            [m_cost],
+            ['x', 'u', 't'],
+            ['M'])
 
     def set_guess(self, control, state):
         self.guess = type('guess', (object,), {})()
         self.guess.controls = control
         self.guess.states = state
 
-    def __create_internal_variables(self):
-        self.__npl = type('npl', (object,), {})()
-        self.__npl.f = 0
-        self.__npl.g = []
-        self.__npl.x = []
-        self.__npl.x0 = []
-        self.__npl.lbg = []
-        self.__npl.ubg = []
-        self.__npl.lbx = []
-        self.__npl.ubx = []
-        self.__plot = type('plot', (object,), {})()
-        self.__plot.x = []
-        self.__plot.u = []
-        self.__X = []
-        self.__U = []
-        for k in np.arange(0, self.time.nGrid-.5, .5):
-            variable_X = []
-            for j in range(len(self.states)):
-                variable_X += [ca.MX.sym('X_' + str(j) + '_' + str(k))]
-            self.__X += variable_X
+    def build(self):
+        self.npl.build_npl(
+            self.dynamic,
+            self.langrange_cost,
+            self.controls,
+            self.states,
+            self.tGrid,
+            self.guess)
 
-            variable_U = []
-            for j in range(len(self.controls)):
-                variable_U += [ca.MX.sym('U_' + str(j) + '_' + str(k))]
-            self.__U += variable_U
-
-    def __build_npl(self):
-        self.__create_internal_variables()
-
-        for k in np.arange(0, 2*self.time.nGrid-2, 2):
-            i = int(k/2)
-
-            # Defects
-            f_k_0 = self.dynamic(self.__X[k], self.__U[k], self.tGrid[i])
-            f_k_1 = self.dynamic(self.__X[k+1], self.__U[k+1], self.tGrid[i]+self.time.dt/2)
-            f_k_2 = self.dynamic(self.__X[k+2], self.__U[k+2], self.tGrid[i+1])
-            
-            self.__npl.g += [self.__X[k+2] - self.__X[k] - self.time.dt*(f_k_0 + 4*f_k_1 + f_k_2)/6]
-            self.__npl.lbg += [0]
-            self.__npl.ubg += [0]
-            self.__npl.g += [self.__X[k+1] - (self.__X[k+2] + self.__X[k])/2 - self.time.dt*(f_k_0 - f_k_2)/8]
-            self.__npl.lbg += [0]
-            self.__npl.ubg += [0]
-
-            # Langrange cost
-            w_k_0 = self.langrange_cost(self.__X[k], self.__U[k], self.tGrid[i])
-            w_k_1 = self.langrange_cost(self.__X[k+1], self.__U[k+1], self.tGrid[i]+self.time.dt/2)
-            w_k_2 = self.langrange_cost(self.__X[k+2], self.__U[k+2], self.tGrid[i+1])
-
-            self.__npl.f += self.time.dt*(w_k_0 + 4*w_k_1 + w_k_2)/6
-
-        for k in range(2*self.time.nGrid-1):
-            self.__npl.x += [self.__U[k]]
-            self.__npl.lbx += self.controls.get_all_min_values()
-            self.__npl.ubx += self.controls.get_all_max_values()
-            self.__npl.x0 += [self.guess.controls]
-
-            self.__npl.x   += [self.__X[k]]
-            self.__npl.lbx += self.states.get_all_min_values()
-            self.__npl.ubx += self.states.get_all_max_values()
-            self.__npl.x0  += [self.guess.states]
-
-            self.__plot.x += [self.__X[k]]
-            self.__plot.u += [self.__U[k]]
-
-        # Set the initial condition for the state
-        self.__npl.lbx[1] = self.guess.states
-        self.__npl.ubx[1] = self.guess.states
-
-        # Concatenate vectors
-        self.__npl.x = ca.vertcat(*self.__npl.x)
-        self.__npl.g = ca.vertcat(*self.__npl.g)
-        self.__plot.x = ca.horzcat(*self.__plot.x)
-        self.__plot.u = ca.horzcat(*self.__plot.u)
-
-        # Creat NPL Solver
-        prob = {'f': self.__npl.f, 'x': self.__npl.x, 'g': self.__npl.g}
-
-        # NLP solver options
-        self.__ipopt_log_file = 'results/'+self.name+'.txt'
-        opts = {"ipopt.output_file" : self.__ipopt_log_file}
-
-        # Use IPOPT as the NLP solver
-        self.__npl.solver = ca.nlpsol('solver', 'ipopt', prob, opts)
-
-    
     def solve(self):
-        self.__build_npl()
-
-        self.__sol = self.__npl.solver(
-            x0=self.__npl.x0, 
-            lbx=self.__npl.lbx, 
-            ubx=self.__npl.ubx, 
-            lbg=self.__npl.lbg, 
-            ubg=self.__npl.ubg)
-        
-        # Retrieve the solution
-        trajectories = ca.Function(
-            'trajectories', 
-            [self.__npl.x], 
-            [self.__plot.x, self.__plot.u], 
-            ['w'], 
-            ['x', 'u'])
-        x_opt, u_opt = trajectories(self.__sol['x'])
+        self.build()
+        [cost, x_opt, u_opt] = self.npl.solve()
         self.solution = type('solution', (object,), {})()
-        self.solution.x = x_opt.full().flatten()
-        self.solution.u = u_opt.full().flatten()
+        self.solution.x = x_opt
+        self.solution.u = u_opt
         self.solution.t = np.linspace(0, self.time.final, num=2*self.time.nGrid-1, endpoint=True)
-        self.solution.f_x = interpolate.interp1d(self.solution.t, self.solution.x, kind=3)
-        self.solution.f_u = interpolate.interp1d(self.solution.t, self.solution.u, kind=2) 
-        
-        print('Optimal cost: ' + str(self.__sol['f']))
+        self.solution.f_x = interpolate.interp1d(self.solution.t, x_opt, kind=3)
+        self.solution.f_u = interpolate.interp1d(self.solution.t, u_opt, kind=2)
+        self.solution.cost = cost
+
     
     def get_optimization_status(self):
         optimzation_status = ''
