@@ -90,12 +90,12 @@ class NonlinearProgrammingProblem():
 
         for k in np.arange(0, nTime-.5, .5):
             variable_X = []
-            for j in range(nControls):
+            for j in range(nStates):
                 variable_X += [ca.MX.sym('X_' + str(j) + '_' + str(k))]
             self.__X += variable_X
 
             variable_U = []
-            for j in range(nStates):
+            for j in range(nControls):
                 variable_U += [ca.MX.sym('U_' + str(j) + '_' + str(k))]
             self.__U += variable_U
     
@@ -106,7 +106,7 @@ class NonlinearProgrammingProblem():
 
     def add_variable(self, x, max, min, guess=None):
         if guess == None:
-            guess = (max+min)/2
+            guess = 0
 
         self.x += [x]
         self.lbx += [min]
