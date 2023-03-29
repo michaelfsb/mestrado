@@ -82,36 +82,36 @@ class NonlinearProgrammingProblem():
         self.ubx = []
     
     def create_variables(self, nControls, nStates, nTime):
-        self.__plot = type('plot', (object,), {})()
-        self.__plot.x = []
-        self.__plot.u = []
-        self.__X = []
-        self.__U = []
+        self.aux = type('aux', (object,), {})()
+        self.aux.X = []
+        self.aux.U = []
+        self.sym = type('sym', (object,), {})()
+        self.sym.X = []
+        self.sym.U = []
 
         for k in np.arange(0, nTime-.5, .5):
             variable_X = []
             for j in range(nStates):
                 variable_X += [ca.MX.sym('X_' + str(j) + '_' + str(k))]
-            self.__X += variable_X
+            self.sym.X += [variable_X]
 
             variable_U = []
             for j in range(nControls):
                 variable_U += [ca.MX.sym('U_' + str(j) + '_' + str(k))]
-            self.__U += variable_U
+            self.sym.U += [variable_U]
     
     def add_constraint(self, g, lbg, ubg):
         self.g += [g]
         self.lbg += [lbg]
         self.ubg += [ubg]
 
-    def add_variable(self, x, max, min, guess=None):
-        if guess == None:
-            guess = 0
-
-        self.x += [x]
-        self.lbx += [min]
-        self.ubx += [max]
-        self.x0 += [guess]
+    def add_variable(self, xList, minlist, maxList, guessList):
+        for i in range(len(xList)):
+            self.x += [xList[i]]
+            self.lbx += [minlist[i]]
+            self.ubx += [maxList[i]]
+            self.x0 += [guessList[i]]
+            self.aux.X += [xList[i]]
 
     def build_npl(self, f: ca.Function, l: ca.Function, controls: VariableList, states: VariableList, tGrid, guess):
         self.create_variables(len(controls), len(states), len(tGrid))
@@ -121,48 +121,45 @@ class NonlinearProgrammingProblem():
             dt = tGrid[i+1]-tGrid[i]
 
             # Defects
-            f_k_0 = f(self.__X[k], self.__U[k], tGrid[i])
-            f_k_1 = f(self.__X[k+1], self.__U[k+1], tGrid[i] + dt/2)
-            f_k_2 = f(self.__X[k+2], self.__U[k+2], tGrid[i+1])
+            f_k_0 = f(self.sym.X[k][0], ca.hcat(self.sym.U[k]), tGrid[i])
+            f_k_1 = f(self.sym.X[k+1][0], ca.hcat(self.sym.U[k+1]), tGrid[i] + dt/2)
+            f_k_2 = f(self.sym.X[k+2][0], ca.hcat(self.sym.U[k+2]), tGrid[i+1])
 
-            g = self.__X[k+2] - self.__X[k] - dt*(f_k_0 + 4*f_k_1 + f_k_2)/6
+            g = self.sym.X[k+2][0] - self.sym.X[k][0] - dt*(f_k_0 + 4*f_k_1 + f_k_2)/6
             self.add_constraint(g, 0, 0)
             
-            g = self.__X[k+1] - (self.__X[k+2] + self.__X[k])/2 - dt*(f_k_0 - f_k_2)/8
+            g = self.sym.X[k+1][0] - (self.sym.X[k+2][0] + self.sym.X[k][0])/2 - dt*(f_k_0 - f_k_2)/8
             self.add_constraint(g, 0, 0)
 
             # Langrange cost
-            w_k_0 = l(self.__X[k], self.__U[k], tGrid[i])
-            w_k_1 = l(self.__X[k+1], self.__U[k+1], tGrid[i] + dt/2)
-            w_k_2 = l(self.__X[k+2], self.__U[k+2], tGrid[i+1])
+            w_k_0 = l(self.sym.X[k][0], ca.hcat(self.sym.U[k]), tGrid[i])
+            w_k_1 = l(self.sym.X[k+1][0], ca.hcat(self.sym.U[k+1]), tGrid[i] + dt/2)
+            w_k_2 = l(self.sym.X[k+2][0], ca.hcat(self.sym.U[k+2]), tGrid[i+1])
 
             self.f += dt*(w_k_0 + 4*w_k_1 + w_k_2)/6
 
         for k in range(2*len(tGrid) - 1):
             self.add_variable(
-                self.__U[k], 
-                controls.get_all_max_values()[0], 
-                controls.get_all_min_values()[0], 
+                self.sym.U[k], 
+                controls.get_all_min_values(), 
+                controls.get_all_max_values(), 
                 guess.controls)
 
             self.add_variable(
-                self.__X[k],
-                states.get_all_max_values()[0],
-                states.get_all_min_values()[0],
+                self.sym.X[k],
+                states.get_all_min_values(),
+                states.get_all_max_values(),
                 guess.states)
             
-            self.__plot.x += [self.__X[k]]
-            self.__plot.u += [self.__U[k]]
-
         # Set the initial condition for the state
-        self.lbx[1] = guess.states
-        self.ubx[1] = guess.states
+        self.lbx[len(controls)] = guess.states[0]
+        self.ubx[len(controls)] = guess.states[0]
 
         # Concatenate vectors
         self.x = ca.vertcat(*self.x)
         self.g = ca.vertcat(*self.g)
-        self.__plot.x = ca.horzcat(*self.__plot.x)
-        self.__plot.u = ca.horzcat(*self.__plot.u)
+        self.aux.X = ca.horzcat(*self.aux.X)
+        self.aux.U = ca.horzcat(*self.aux.U)
 
         # Creat NPL Solver
         prob = {'f': self.f, 'x': self.x, 'g': self.g}
@@ -187,7 +184,7 @@ class NonlinearProgrammingProblem():
         trajectories = ca.Function(
             'trajectories', 
             [self.x], 
-            [self.__plot.x, self.__plot.u], 
+            [self.aux.X, self.aux.U], 
             ['w'], 
             ['x', 'u'])
         

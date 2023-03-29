@@ -26,7 +26,7 @@ f_l = (p_el - p_ps)**2
 problem.set_dynamic(v_h2_dot)
 problem.set_langrange_cost(f_l)
 
-problem.set_guess(control=30, state=0.65)
+problem.set_guess(control=[30], state=[0.65])
 
 problem.solve()
 
