@@ -105,13 +105,21 @@ class NonlinearProgrammingProblem():
         self.lbg += [lbg]
         self.ubg += [ubg]
 
-    def add_variable(self, xList, minlist, maxList, guessList):
+    def add_variable_x(self, xList, minlist, maxList, guessList):
         for i in range(len(xList)):
             self.x += [xList[i]]
             self.lbx += [minlist[i]]
             self.ubx += [maxList[i]]
             self.x0 += [guessList[i]]
             self.aux.X += [xList[i]]
+
+    def add_variable_u(self, xList, minlist, maxList, guessList):
+        for i in range(len(xList)):
+            self.x += [xList[i]]
+            self.lbx += [minlist[i]]
+            self.ubx += [maxList[i]]
+            self.x0 += [guessList[i]]
+            self.aux.U += [xList[i]]
 
     def build_npl(self, f: ca.Function, l: ca.Function, controls: VariableList, states: VariableList, tGrid, guess):
         self.create_variables(len(controls), len(states), len(tGrid))
@@ -139,13 +147,13 @@ class NonlinearProgrammingProblem():
             self.f += dt*(w_k_0 + 4*w_k_1 + w_k_2)/6
 
         for k in range(2*len(tGrid) - 1):
-            self.add_variable(
+            self.add_variable_u(
                 self.sym.U[k], 
                 controls.get_all_min_values(), 
                 controls.get_all_max_values(), 
                 guess.controls)
 
-            self.add_variable(
+            self.add_variable_x(
                 self.sym.X[k],
                 states.get_all_min_values(),
                 states.get_all_max_values(),
