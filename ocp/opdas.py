@@ -257,10 +257,13 @@ class OptimalControlProblem():
         self.npl = NonlinearProgrammingProblem()
         
     def set_dynamic(self, dynamic):
+        if isinstance(dynamic, list):
+            dynamic = ca.hcat(dynamic)
+            
         self.dynamic = ca.Function(
             'F', 
             [ca.hcat(self.states.get_all_values()), ca.hcat(self.controls.get_all_values()), self.time.value],
-            [ca.hcat(dynamic)], 
+            [dynamic], 
             ['x', 'u', 't'], 
             ['x_dot'])
     
