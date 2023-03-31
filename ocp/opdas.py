@@ -349,8 +349,8 @@ class OptimalControlProblem():
                 t += np.linspace(self.solution.t[i+1], self.solution.t[i+2], 10, endpoint=False).tolist()
             t += [self.time.final]
 
-        f_interpolated = interpolate.interp1d(self.solution.t, self.dynamic(self.solution.x, self.solution.u, self.solution.t).full().flatten(), kind=2)
-        error = self.dynamic(self.solution.f_x(t), self.solution.f_u(t), t) - f_interpolated(t)
+        f_interpolated = interpolate.interp1d(self.solution.t, self.dynamic(self.solution.traj[0].values, self.solution.traj[1].values, self.solution.t).full().flatten(), kind=2)
+        error = self.dynamic(self.solution.traj[0].f(t), self.solution.traj[1].f(t), t) - f_interpolated(t)
 
         # Plot error
         fig2 = plt.figure(2)
@@ -359,5 +359,6 @@ class OptimalControlProblem():
         plt.ylabel('Error')
         plt.xlabel('Time [h]')
         plt.grid(axis='both',linestyle='-.')
-        #plt.show()
-        plt.savefig(files.get_plot_error_file_name(__file__), bbox_inches='tight', dpi=300)
+        
+        plt.show()
+        #plt.savefig(files.get_plot_error_file_name(__file__), bbox_inches='tight', dpi=300)
