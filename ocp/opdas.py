@@ -323,39 +323,40 @@ class OptimalControlProblem():
             t_plot = np.linspace(0, self.time.final, num=10*self.time.nGrid, endpoint=True)
 
         fig, axs = plt.subplots(2,1)
-        #fig.suptitle('Simulation Results: ' + optimzation_status + '\nCost: ' + str(self.__sol['f']))
-
-        fig, axs = plt.subplots(2,1)
-        #fig.suptitle('Simulation Results: ' + optimzation_status + '\nCost: ' + str(self.__sol['f']))
+        #fig.suptitle('Simulation Results: ' + optimzation_status + '\nCost: ' + str(self.solution.cost))
+        fig.suptitle('Simulation Results \nCost: ' + str(self.solution.cost))
         axs[0].plot(t_plot/60, self.solution.traj['i_el'].f(t_plot), '-b')
         axs[0].set_ylabel('Electrolyzer current [A]')
         axs[0].grid(axis='both',linestyle='-.')
-        #axs[0].set_xticks(np.arange(0, 26, 2))
+        axs[0].set_xticks(np.arange(0, 26, 2))
 
         axs[1].plot(t_plot/60, self.solution.traj['v_h2'].f(t_plot), '-g')
         axs[1].set_ylabel('Hydrogen [Nm3]')
         axs[1].set_xlabel('Time [h]')
         axs[1].grid(axis='both',linestyle='-.')
-        #axs[1].set_xticks(np.arange(0, 26, 2))
+        axs[1].set_xticks(np.arange(0, 26, 2))
 
         plt.show()
         #plt.savefig(files.get_plot_file_name(__file__), bbox_inches='tight', dpi=300)
 
-    def evaluate_error(self, t=None):
+    def evaluate_error(self, t=None, plot=False):
         if t is None:
             t = []
             for i in range(0, len(self.solution.t)-2, 2):
-                t += np.linspace(self.solution.t[i], self.solution.t[i+1], 10, endpoint=False).tolist()
-                t += np.linspace(self.solution.t[i+1], self.solution.t[i+2], 10, endpoint=False).tolist()
+                t += np.linspace(self.solution.t[i], self.solution.t[i+1], 5, endpoint=False).tolist()
+                t += np.linspace(self.solution.t[i+1], self.solution.t[i+2], 5, endpoint=False).tolist()
             t += [self.time.final]
 
         f_interpolated = interpolate.interp1d(self.solution.t, self.dynamic(self.solution.traj[0].values, self.solution.traj[1].values, self.solution.t).full().flatten(), kind=2)
-        error = self.dynamic(self.solution.traj[0].f(t), self.solution.traj[1].f(t), t) - f_interpolated(t)
+        
+        # Error in differential equations
+        self.solution.diff_error = self.dynamic(self.solution.traj[0].f(t), self.solution.traj[1].f(t), t) - f_interpolated(t)
+        self.solution.t_error = t
 
-        # Plot error
+    def plot_error(self):
         fig2 = plt.figure(2)
         fig2.suptitle('Erro in differential equations')
-        plt.plot(t, error, self.solution.t, np.zeros(len(self.solution.t)), '.r')
+        plt.plot(self.solution.t_error, self.solution.diff_error, self.solution.t, np.zeros(len(self.solution.t)), '.r')
         plt.ylabel('Error')
         plt.xlabel('Time [h]')
         plt.grid(axis='both',linestyle='-.')
