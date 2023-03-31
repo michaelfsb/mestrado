@@ -29,7 +29,10 @@ class VariableList:
         return len(self.variables)
     
     def __getitem__(self, key):
-        return self.get(key).value
+        if isinstance(key, int):
+            return self.variables[key]
+        else:
+            return self.get(key).value
     
     def add(self, name, max, min):
         variable = Variable(name, max, min)
@@ -215,13 +218,34 @@ class NonlinearProgrammingProblem():
             ['w'], 
             aux_output)
         
-        x_opt, u_opt, u2 = trajectories(self.__sol['x'])
-        x_opt = x_opt.full().flatten()
-        u_opt = u_opt.full().flatten()
-        u2 = u2.full().flatten()
+        traj_opt = trajectories(self.__sol['x'])
         
-        return [self.__sol['f'], x_opt, u_opt]	
+        return [self.__sol['f'], traj_opt]
 
+class OptimalTrajectory():
+    def __init__(self, name: str, values, f):
+        self.name = name
+        self.values = values
+        self.f = f
+
+class OptimalTrajectoryList():
+    def __init__(self):
+        self.trajectories = []
+    
+    def __getitem__(self, key):
+        if isinstance(key, int):
+            return self.trajectories[key]
+        else:
+            return self.get(key)
+        
+    def add(self, trajectory):
+        self.trajectories.append(trajectory)
+        
+    def get(self, name):
+        for trajectory in self.trajectories:
+            if trajectory.name == name:
+                return trajectory
+        return None
 
 class OptimalControlProblem():
     def __init__(self, name: str, controls: VariableList, states: VariableList, time: Time):
@@ -260,7 +284,7 @@ class OptimalControlProblem():
         self.guess.controls = control
         self.guess.states = state
 
-    def build(self):
+    def solve(self):
         self.npl.build_npl(
             self.dynamic,
             self.langrange_cost,
@@ -268,19 +292,24 @@ class OptimalControlProblem():
             self.states,
             self.tGrid,
             self.guess)
+        
+        [cost, traj_opt] = self.npl.solve()
 
-    def solve(self):
-        self.build()
-        [cost, x_opt, u_opt] = self.npl.solve()
         self.solution = type('solution', (object,), {})()
-        self.solution.x = x_opt
-        self.solution.u = u_opt
         self.solution.t = np.linspace(0, self.time.final, num=2*self.time.nGrid-1, endpoint=True)
-        self.solution.f_x = interpolate.interp1d(self.solution.t, x_opt, kind=3)
-        self.solution.f_u = interpolate.interp1d(self.solution.t, u_opt, kind=2)
         self.solution.cost = cost
+        self.solution.traj = OptimalTrajectoryList()
 
-    
+        for i in range(len(self.states)):
+            x_opt = traj_opt[i].full().flatten()
+            fx = interpolate.interp1d(self.solution.t, x_opt, kind=3)
+            self.solution.traj.add(OptimalTrajectory(self.states[i].name, x_opt, fx))
+
+        for i in range(len(self.controls)):
+            u_opt = traj_opt[i+len(self.states)].full().flatten()
+            fu = interpolate.interp1d(self.solution.t, u_opt, kind=2)
+            self.solution.traj.add(OptimalTrajectory(self.controls[i].name, u_opt, fu))
+
     def get_optimization_status(self):
         optimzation_status = ''
         with open(self.__ipopt_log_file) as file:
