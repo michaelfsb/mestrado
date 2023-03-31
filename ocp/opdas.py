@@ -260,7 +260,7 @@ class OptimalControlProblem():
         self.dynamic = ca.Function(
             'F', 
             [ca.hcat(self.states.get_all_values()), ca.hcat(self.controls.get_all_values()), self.time.value],
-            [dynamic], 
+            [ca.hcat(dynamic)], 
             ['x', 'u', 't'], 
             ['x_dot'])
     
