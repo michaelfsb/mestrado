@@ -89,6 +89,12 @@ class NonlinearProgrammingProblem():
         self.sym.X = []
         self.sym.U = []
 
+        for k in range(nStates):
+            self.aux.X.append([])
+
+        for k in range(nControls):
+            self.aux.U.append([])
+
         for k in np.arange(0, nTime-.5, .5):
             variable_X = []
             for j in range(nStates):
@@ -105,21 +111,21 @@ class NonlinearProgrammingProblem():
         self.lbg += [lbg]
         self.ubg += [ubg]
 
-    def add_variable_x(self, xList, minlist, maxList, guessList):
-        for i in range(len(xList)):
-            self.x += [xList[i]]
-            self.lbx += [minlist[i]]
-            self.ubx += [maxList[i]]
-            self.x0 += [guessList[i]]
-            self.aux.X += [xList[i]]
-
     def add_variable_u(self, xList, minlist, maxList, guessList):
         for i in range(len(xList)):
             self.x += [xList[i]]
             self.lbx += [minlist[i]]
             self.ubx += [maxList[i]]
             self.x0 += [guessList[i]]
-            self.aux.U += [xList[i]]
+            self.aux.U[i] += [xList[i]]
+
+    def add_variable_x(self, xList, minlist, maxList, guessList):
+        for i in range(len(xList)):
+            self.x += [xList[i]]
+            self.lbx += [minlist[i]]
+            self.ubx += [maxList[i]]
+            self.x0 += [guessList[i]]
+            self.aux.X[i] += [xList[i]]
 
     def build_npl(self, f: ca.Function, l: ca.Function, controls: VariableList, states: VariableList, tGrid, guess):
         self.create_variables(len(controls), len(states), len(tGrid))
@@ -166,8 +172,12 @@ class NonlinearProgrammingProblem():
         # Concatenate vectors
         self.x = ca.vertcat(*self.x)
         self.g = ca.vertcat(*self.g)
-        self.aux.X = ca.horzcat(*self.aux.X)
-        self.aux.U = ca.horzcat(*self.aux.U)
+
+        for i in range(len(self.aux.X)):
+            self.aux.X[i] = ca.horzcat(*self.aux.X[i])
+
+        for i in range(len(self.aux.U)):
+            self.aux.U[i] = ca.horzcat(*self.aux.U[i])
 
         # Creat NPL Solver
         prob = {'f': self.f, 'x': self.x, 'g': self.g}
@@ -189,16 +199,26 @@ class NonlinearProgrammingProblem():
             lbg=self.lbg, 
             ubg=self.ubg)
         
+        aux_input = []
+        aux_output = []
+        for i in range(len(self.aux.X)):
+            aux_input.append(self.aux.X[i])
+            aux_output.append('x_'+str(i))
+        for i in range(len(self.aux.U)):
+            aux_input.append(self.aux.U[i])
+            aux_output.append('u_'+str(i))
+
         trajectories = ca.Function(
             'trajectories', 
             [self.x], 
-            [self.aux.X, self.aux.U], 
+            aux_input, 
             ['w'], 
-            ['x', 'u'])
+            aux_output)
         
-        x_opt, u_opt = trajectories(self.__sol['x'])
+        x_opt, u_opt, u2 = trajectories(self.__sol['x'])
         x_opt = x_opt.full().flatten()
         u_opt = u_opt.full().flatten()
+        u2 = u2.full().flatten()
         
         return [self.__sol['f'], x_opt, u_opt]	
 
