@@ -318,19 +318,21 @@ class OptimalControlProblem():
                     optimzation_status = line.strip()[5:-1]
         return optimzation_status
 
-    def plot_solution(self, t=None):
-        if t is None:
-            t = np.linspace(0, self.time.final, num=10*self.time.nGrid, endpoint=True)
+    def plot_solution(self, t_plot=None):
+        if t_plot is None:
+            t_plot = np.linspace(0, self.time.final, num=10*self.time.nGrid, endpoint=True)
 
         fig, axs = plt.subplots(2,1)
         #fig.suptitle('Simulation Results: ' + optimzation_status + '\nCost: ' + str(self.__sol['f']))
 
-        axs[0].plot(t/60, self.solution.f_u(t), '-b')
+        fig, axs = plt.subplots(2,1)
+        #fig.suptitle('Simulation Results: ' + optimzation_status + '\nCost: ' + str(self.__sol['f']))
+        axs[0].plot(t_plot/60, self.solution.traj['i_el'].f(t_plot), '-b')
         axs[0].set_ylabel('Electrolyzer current [A]')
         axs[0].grid(axis='both',linestyle='-.')
         #axs[0].set_xticks(np.arange(0, 26, 2))
 
-        axs[1].plot(t/60, self.solution.f_x(t), '-g')
+        axs[1].plot(t_plot/60, self.solution.traj['v_h2'].f(t_plot), '-g')
         axs[1].set_ylabel('Hydrogen [Nm3]')
         axs[1].set_xlabel('Time [h]')
         axs[1].grid(axis='both',linestyle='-.')
