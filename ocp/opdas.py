@@ -6,7 +6,29 @@ from scipy import interpolate
 from utils import files
 
 class Time():
-    def __init__(self, initial: int, final: int, nGrid: int):
+    """ 
+    Rrepresents the time domain for a OptimalControlProblem.
+
+    :param name: A string representing the name of the time domain.
+    :param value: A MX symbol representing the value of the time domain.
+    :param initial: An integer representing the initial time value of the time domain.
+    :param final: An integer representing the final time value of the time domain.
+    :param nGrid: An integer representing the number of points in the time domain.
+    :param dt: A numeric value representing the time step size.
+    """
+
+    def __init__(self, initial: float, final: float, nGrid: int):
+        """
+        Creates a new Time object with the given bounds.
+
+        :param initial: the initial time value of the time domain.
+        :type initial: float
+        :param final: the final time value of the time domain.
+        :type final: float
+        :param nGrid: the number of points in the time domain.
+        :type nGrid: int
+        """
+                
         self.name = 'time'
         self.value = ca.MX.sym(self.name)
         self.initial = initial
@@ -16,13 +38,38 @@ class Time():
 
 class Variable:
     def __init__(self, name, max, min):
+        """
+        Creates a new Variable object with the given name and bounds.
+
+        :param name: the name of the variable.
+        :type name: str
+        :param max: the maximum allowed value of the variable.
+        :type max: float
+        :param min: the minimum allowed value of the variable.
+        :type min: float
+        """
+
         self.name = name
         self.value = ca.MX.sym(self.name)
         self.max = max
         self.min = min
 
+
+class Variable:
+    def __init__(self, name, max, min):
+
+        self.name = name
+        self.value = ca.MX.sym(self.name)
+        self.max = max
+        self.min = min
+
+
 class VariableList:
     def __init__(self):
+        """
+        Creates an empty list of variables.
+        """
+
         self.variables = []
 
     def __len__(self):
@@ -35,10 +82,30 @@ class VariableList:
             return self.get(key).value
     
     def add(self, name, max, min):
+        """
+        Adds a new variable to the list with the given name and bounds.
+
+        :param name: the name of the variable.
+        :type name: str
+        :param max: the maximum allowed value of the variable.
+        :type max: float
+        :param min: the minimum allowed value of the variable.
+        :type min: float
+        """
+            
         variable = Variable(name, max, min)
         self.variables.append(variable)
 
     def remove(self, name):
+        """
+        Removes the variable with the given name from the list.
+
+        :param name: the name of the variable to remove.
+        :type name: str
+        :return: True if a variable with the given name was found and removed, False otherwise.
+        :rtype: bool
+        """
+
         for variable in self.variables:
             if variable.name == name:
                 self.variables.remove(variable)
@@ -46,27 +113,64 @@ class VariableList:
         return False
 
     def get(self, name):
+        """
+        Gets the variable with the given name from the list.
+
+        :param name: the name of the variable to get.
+        :type name: str
+        :return: the Variable object with the given name, or None if not found.
+        :rtype: Variable or None
+        """
+
         for variable in self.variables:
             if variable.name == name:
                 return variable
         return None
 
     def get_all(self):
+        """
+        Gets a list of all the variables in the list.
+
+        :return: a list of all the Variable objects in the list.
+        :rtype: list of Variable
+        """
+
         return self.variables
     
     def get_all_values(self):
+        """
+        Gets a list of the values of all the variables in the list.
+
+        :return: a list of the values of all the variables in the list.
+        :rtype: list of casadi.MX
+        """
+
         values = []
         for variable in self.variables:
             values.append(variable.value)
         return values
     
     def get_all_min_values(self):
+        """
+        Gets a list of the minimum bounds of all the variables in the list.
+
+        :return: a list of the minimum bounds of all the variables in the list.
+        :rtype: list of float
+        """
+            
         min_values = []
         for variable in self.variables:
             min_values.append(variable.min)
         return min_values
     
     def get_all_max_values(self):
+        """
+        Gets a list of the maximum bounds of all the variables in the list.
+
+        :return: a list of the maximum bounds of all the variables in the list.
+        :rtype: list of float
+        """
+                
         max_values = []
         for variable in self.variables:
             max_values.append(variable.max)
@@ -259,7 +363,7 @@ class OptimalControlProblem():
     def set_dynamic(self, dynamic):
         if isinstance(dynamic, list):
             dynamic = ca.hcat(dynamic)
-            
+
         self.dynamic = ca.Function(
             'F', 
             [ca.hcat(self.states.get_all_values()), ca.hcat(self.controls.get_all_values()), self.time.value],
