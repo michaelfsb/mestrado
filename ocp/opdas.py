@@ -72,10 +72,10 @@ class VariableList:
 
         self.variables = []
 
-    def __len__(self):
+    def __len__(self) -> int:
         return len(self.variables)
     
-    def __getitem__(self, key):
+    def __getitem__(self, key) -> Variable:
         if isinstance(key, int):
             return self.variables[key]
         else:
@@ -112,7 +112,7 @@ class VariableList:
                 return True
         return False
 
-    def get(self, name):
+    def get(self, name) -> Variable:
         """
         Gets the variable with the given name from the list.
 
@@ -127,7 +127,7 @@ class VariableList:
                 return variable
         return None
 
-    def get_all(self):
+    def get_all(self) -> list:
         """
         Gets a list of all the variables in the list.
 
@@ -137,7 +137,7 @@ class VariableList:
 
         return self.variables
     
-    def get_all_values(self):
+    def get_all_values(self) -> list:
         """
         Gets a list of the values of all the variables in the list.
 
@@ -150,7 +150,7 @@ class VariableList:
             values.append(variable.value)
         return values
     
-    def get_all_min_values(self):
+    def get_all_min_values(self) -> list:
         """
         Gets a list of the minimum bounds of all the variables in the list.
 
@@ -163,7 +163,7 @@ class VariableList:
             min_values.append(variable.min)
         return min_values
     
-    def get_all_max_values(self):
+    def get_all_max_values(self) -> list:
         """
         Gets a list of the maximum bounds of all the variables in the list.
 
@@ -298,7 +298,7 @@ class NonlinearProgrammingProblem():
         self.solver = ca.nlpsol('solver', 'ipopt', prob, opts)
 
     
-    def solve(self):
+    def solve(self) -> list:
         self.__sol = self.solver(
             x0=self.x0, 
             lbx=self.lbx, 
@@ -333,19 +333,63 @@ class OptimalTrajectory():
         self.f = f
 
 class OptimalTrajectoryList():
+    """
+    The OptimalTrajectoryList class represents a list of optimal trajectories. 
+    Each trajectory is an instance of the OptimalTrajectory class and is identified by a unique name. 
+    The class provides the ability to add new trajectories to the list and retrieve trajectories by either their index or name.
+    """
+
     def __init__(self):
+        """
+        Initializes an empty OptimalTrajectoryList object.
+        """
+
         self.trajectories = []
     
-    def __getitem__(self, key):
+    def __getitem__(self, key) -> OptimalTrajectory:
+        """
+        Returns the trajectory at the given index or with the given name.
+
+        Args:
+            key: int or str
+                Index of the trajectory or name of the trajectory.
+
+        Returns:
+            OptimalTrajectory or None
+                Returns the OptimalTrajectory object at the given index or with the given name.
+                Returns None if no trajectory is found.
+        """
+
         if isinstance(key, int):
             return self.trajectories[key]
         else:
             return self.get(key)
         
     def add(self, trajectory):
+        """
+        Adds a new OptimalTrajectory object to the list.
+
+        Args:
+            trajectory: OptimalTrajectory
+                OptimalTrajectory object to add to the list.
+        """
+
         self.trajectories.append(trajectory)
         
-    def get(self, name):
+    def get(self, name) -> OptimalTrajectory:
+        """
+        Returns the trajectory with the given name.
+
+        Args:
+            name: str
+                Name of the trajectory.
+
+        Returns:
+            OptimalTrajectory or None
+                Returns the OptimalTrajectory object with the given name.
+                Returns None if no trajectory is found.
+        """
+
         for trajectory in self.trajectories:
             if trajectory.name == name:
                 return trajectory
@@ -417,7 +461,7 @@ class OptimalControlProblem():
             fu = interpolate.interp1d(self.solution.t, u_opt, kind=2)
             self.solution.traj.add(OptimalTrajectory(self.controls[i].name, u_opt, fu))
 
-    def get_optimization_status(self):
+    def get_optimization_status(self) -> str:
         optimzation_status = ''
         with open(self.__ipopt_log_file) as file:
             for line in file:
