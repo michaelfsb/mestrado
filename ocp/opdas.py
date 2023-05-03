@@ -37,7 +37,7 @@ class Time():
         self.dt = (final - initial)/nGrid
 
 class Variable:
-    def __init__(self, name, max, min):
+    def __init__(self, name, max, min, discrete=False):
         """
         Creates a new Variable object with the given name and bounds.
 
@@ -53,16 +53,7 @@ class Variable:
         self.value = ca.MX.sym(self.name)
         self.max = max
         self.min = min
-
-
-class Variable:
-    def __init__(self, name, max, min):
-
-        self.name = name
-        self.value = ca.MX.sym(self.name)
-        self.max = max
-        self.min = min
-
+        self.discrete = discrete
 
 class VariableList:
     def __init__(self):
@@ -81,7 +72,7 @@ class VariableList:
         else:
             return self.get(key).value
     
-    def add(self, name, max, min):
+    def add(self, name, max, min, discrete=False):
         """
         Adds a new variable to the list with the given name and bounds.
 
@@ -93,7 +84,7 @@ class VariableList:
         :type min: float
         """
             
-        variable = Variable(name, max, min)
+        variable = Variable(name, max, min, discrete)
         self.variables.append(variable)
 
     def remove(self, name):
@@ -176,26 +167,39 @@ class VariableList:
             max_values.append(variable.max)
         return max_values
     
+    def get_all_discrete_values(self) -> list:
+        """
+        Gets a list of the discrete flags of all the variables in the list.
+
+        :return: a list of the discrete flags of all the variables in the list.
+        :rtype: list of bool
+        """
+                
+        discrete_values = []
+        for variable in self.variables:
+            discrete_values.append(variable.discrete)
+        return discrete_values
+    
 class NonlinearProgrammingProblem():
     def __init__(self, option=None):
         self.option = option
         self.f = 0
         self.g = []
         self.x = []
+        self.discrete = []
         self.x0 = []
         self.lbg = []
         self.ubg = []
         self.lbx = []
         self.ubx = []
-    
-    def create_variables(self, nControls, nStates, nTime):
         self.aux = type('aux', (object,), {})()
         self.aux.X = []
         self.aux.U = []
         self.sym = type('sym', (object,), {})()
         self.sym.X = []
         self.sym.U = []
-
+    
+    def create_variables(self, nControls, nStates, nTime):
         for k in range(nStates):
             self.aux.X.append([])
 
@@ -218,21 +222,23 @@ class NonlinearProgrammingProblem():
         self.lbg += [lbg]
         self.ubg += [ubg]
 
-    def add_variable_u(self, xList, minlist, maxList, guessList):
+    def add_variable_u(self, xList, minlist, maxList, guessList, discreteList):
         for i in range(len(xList)):
             self.x += [xList[i]]
             self.lbx += [minlist[i]]
             self.ubx += [maxList[i]]
             self.x0 += [guessList[i]]
             self.aux.U[i] += [xList[i]]
+            self.discrete += [discreteList[i]]
 
-    def add_variable_x(self, xList, minlist, maxList, guessList):
+    def add_variable_x(self, xList, minlist, maxList, guessList, discreteList):
         for i in range(len(xList)):
             self.x += [xList[i]]
             self.lbx += [minlist[i]]
             self.ubx += [maxList[i]]
             self.x0 += [guessList[i]]
             self.aux.X[i] += [xList[i]]
+            self.discrete += [discreteList[i]]
 
     def build_npl(self, f: ca.Function, l: ca.Function, controls: VariableList, states: VariableList, tGrid, guess):
         self.create_variables(len(controls), len(states), len(tGrid))
@@ -264,13 +270,15 @@ class NonlinearProgrammingProblem():
                 self.sym.U[k], 
                 controls.get_all_min_values(), 
                 controls.get_all_max_values(), 
-                guess.controls)
+                guess.controls,
+                controls.get_all_discrete_values())
 
             self.add_variable_x(
                 self.sym.X[k],
                 states.get_all_min_values(),
                 states.get_all_max_values(),
-                guess.states)
+                guess.states,
+                states.get_all_discrete_values())
             
         # Set the initial condition for the state
         self.lbx[len(controls)] = guess.states[0]
@@ -294,8 +302,11 @@ class NonlinearProgrammingProblem():
         self.__ipopt_log_file = 'log.txt'
         opts = {"ipopt.output_file" : self.__ipopt_log_file}
 
-        # Use IPOPT as the NLP solver
-        self.solver = ca.nlpsol('solver', 'ipopt', prob, opts)
+        # Use BONMIN or IPOPT as the NLP solver
+        if self.discrete.__contains__(True):
+            self.solver = ca.nlpsol('solver', 'bonmin', prob, {"discrete": self.discrete})
+        else:
+            self.solver = ca.nlpsol('solver', 'ipopt', prob, opts)
 
     
     def solve(self) -> list:
