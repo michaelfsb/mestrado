@@ -34,6 +34,7 @@ class Time():
         self.initial = initial
         self.final = final
         self.nGrid = nGrid
+        self.tGrid = np.linspace(initial, final, num=nGrid, endpoint=True)
         self.dt = (final - initial)/nGrid
 
 class Variable:
@@ -192,9 +193,14 @@ class NonlinearProgrammingProblem():
         self.aux = type('aux', (object,), {})()
         self.aux.X = []
         self.aux.U = []
+        self.aux.T = []
         self.sym = type('sym', (object,), {})()
         self.sym.X = []
         self.sym.U = []
+        self.sym.T = []
+
+        for k in range(nTime):
+            self.sym.T.append(ca.MX.sym('T_' + str(k)))
 
         for k in range(nStates):
             self.aux.X.append([])
@@ -218,33 +224,40 @@ class NonlinearProgrammingProblem():
         self.lbg += [lbg]
         self.ubg += [ubg]
 
-    def add_variable_u(self, xList, minlist, maxList, guessList):
-        for i in range(len(xList)):
-            self.x += [xList[i]]
+    def add_variable_u(self, vList, minlist, maxList, guessList):
+        for i in range(len(vList)):
+            self.x += [vList[i]]
             self.lbx += [minlist[i]]
             self.ubx += [maxList[i]]
             self.x0 += [guessList[i]]
-            self.aux.U[i] += [xList[i]]
+            self.aux.U[i] += [vList[i]]
 
-    def add_variable_x(self, xList, minlist, maxList, guessList):
-        for i in range(len(xList)):
-            self.x += [xList[i]]
+    def add_variable_x(self, vList, minlist, maxList, guessList):
+        for i in range(len(vList)):
+            self.x += [vList[i]]
             self.lbx += [minlist[i]]
             self.ubx += [maxList[i]]
             self.x0 += [guessList[i]]
-            self.aux.X[i] += [xList[i]]
+            self.aux.X[i] += [vList[i]]
+    
+    def add_variable_t(self, v, min, max, guess):
+        self.x += [v]
+        self.lbx += [min]
+        self.ubx += [max]
+        self.x0 += [guess]
+        self.aux.T += [v]
+    
+    def build_npl(self, F: ca.Function, L: ca.Function, controls: VariableList, states: VariableList, time: Time, guess):
+        self.create_variables(len(controls), len(states), time.nGrid)
 
-    def build_npl(self, f: ca.Function, l: ca.Function, controls: VariableList, states: VariableList, tGrid, guess):
-        self.create_variables(len(controls), len(states), len(tGrid))
-
-        for k in np.arange(0, 2*len(tGrid) - 2, 2):
+        for k in np.arange(0, 2*time.nGrid - 2, 2):
             i = int(k/2)
-            dt = tGrid[i+1]-tGrid[i]
+            dt = self.sym.T[i+1]-self.sym.T[i]
 
             # Defects
-            f_k_0 = f(self.sym.X[k][0], ca.hcat(self.sym.U[k]), tGrid[i])
-            f_k_1 = f(self.sym.X[k+1][0], ca.hcat(self.sym.U[k+1]), tGrid[i] + dt/2)
-            f_k_2 = f(self.sym.X[k+2][0], ca.hcat(self.sym.U[k+2]), tGrid[i+1])
+            f_k_0 = F(self.sym.X[k][0], ca.hcat(self.sym.U[k]), self.sym.T[i])
+            f_k_1 = F(self.sym.X[k+1][0], ca.hcat(self.sym.U[k+1]), self.sym.T[i] + dt/2)
+            f_k_2 = F(self.sym.X[k+2][0], ca.hcat(self.sym.U[k+2]), self.sym.T[i+1])
 
             g = self.sym.X[k+2][0] - self.sym.X[k][0] - dt*(f_k_0 + 4*f_k_1 + f_k_2)/6
             self.add_constraint(g, 0, 0)
@@ -253,13 +266,18 @@ class NonlinearProgrammingProblem():
             self.add_constraint(g, 0, 0)
 
             # Langrange cost
-            w_k_0 = l(self.sym.X[k][0], ca.hcat(self.sym.U[k]), tGrid[i])
-            w_k_1 = l(self.sym.X[k+1][0], ca.hcat(self.sym.U[k+1]), tGrid[i] + dt/2)
-            w_k_2 = l(self.sym.X[k+2][0], ca.hcat(self.sym.U[k+2]), tGrid[i+1])
+            w_k_0 = L(self.sym.X[k][0], ca.hcat(self.sym.U[k]), self.sym.T[i])
+            w_k_1 = L(self.sym.X[k+1][0], ca.hcat(self.sym.U[k+1]), self.sym.T[i] + dt/2)
+            w_k_2 = L(self.sym.X[k+2][0], ca.hcat(self.sym.U[k+2]), self.sym.T[i+1])
 
             self.f += dt*(w_k_0 + 4*w_k_1 + w_k_2)/6
 
-        for k in range(2*len(tGrid) - 1):
+            # Time constraints
+            g = self.sym.T[i+1] - self.sym.T[i]
+            self.add_constraint(g, 0, ca.inf)
+
+        # Add states and controls as optimization variables to the NLP
+        for k in range(2*time.nGrid - 1):
             self.add_variable_u(
                 self.sym.U[k], 
                 controls.get_all_min_values(), 
@@ -276,6 +294,23 @@ class NonlinearProgrammingProblem():
         self.lbx[len(controls)] = guess.states[0]
         self.ubx[len(controls)] = guess.states[0]
 
+        # Add time as optimization variable to the NLP
+        for k in range(time.nGrid):
+            self.add_variable_t(
+                self.sym.T[k],
+                time.initial,
+                time.final,
+                time.tGrid[k])
+        
+        # Set the initial condition for the time
+        # Start time
+        self.lbx[-time.nGrid] = time.initial
+        self.ubx[-time.nGrid] = time.initial
+        # Final time
+        self.lbx[-1] = time.final
+        self.ubx[-1] = time.final
+
+
         # Concatenate vectors
         self.x = ca.vertcat(*self.x)
         self.g = ca.vertcat(*self.g)
@@ -285,6 +320,8 @@ class NonlinearProgrammingProblem():
 
         for i in range(len(self.aux.U)):
             self.aux.U[i] = ca.horzcat(*self.aux.U[i])
+        
+        self.aux.T = ca.horzcat(*self.aux.T)
 
         # Creat NPL Solver
         prob = {'f': self.f, 'x': self.x, 'g': self.g}
@@ -296,7 +333,6 @@ class NonlinearProgrammingProblem():
 
         # Use IPOPT as the NLP solver
         self.solver = ca.nlpsol('solver', 'ipopt', prob, opts)
-
     
     def solve(self) -> list:
         self.__sol = self.solver(
@@ -314,6 +350,9 @@ class NonlinearProgrammingProblem():
         for i in range(len(self.aux.U)):
             aux_input.append(self.aux.U[i])
             aux_output.append('u_'+str(i))
+        
+        aux_input.append(self.aux.T)
+        aux_output.append('t')
 
         trajectories = ca.Function(
             'trajectories', 
@@ -401,7 +440,6 @@ class OptimalControlProblem():
         self.controls = controls
         self.states = states
         self.time = time
-        self.tGrid = np.linspace(time.initial, time.final, num=time.nGrid, endpoint=True)
         self.npl = NonlinearProgrammingProblem()
         
     def set_dynamic(self, dynamic):
@@ -441,24 +479,33 @@ class OptimalControlProblem():
             self.langrange_cost,
             self.controls,
             self.states,
-            self.tGrid,
+            self.time,
             self.guess)
         
         [cost, traj_opt] = self.npl.solve()
 
         self.solution = type('solution', (object,), {})()
-        self.solution.t = np.linspace(0, self.time.final, num=2*self.time.nGrid-1, endpoint=True)
+        #self.solution.t = np.linspace(0, self.time.final, num=2*self.time.nGrid-1, endpoint=True)
         self.solution.cost = cost
         self.solution.traj = OptimalTrajectoryList()
+        
+        t_opt = traj_opt[2].full().flatten()
+        t_aux = []
+        for i in range(self.time.nGrid-1):
+            t_mid = (t_opt[i+1]-t_opt[i])/2
+            t_aux += [t_opt[i]]
+            t_aux += [t_opt[i] + t_mid]
+        t_aux += [t_opt[-1]]
+        self.solution.t_opt = t_aux
 
         for i in range(len(self.states)):
             x_opt = traj_opt[i].full().flatten()
-            fx = interpolate.interp1d(self.solution.t, x_opt, kind=3)
+            fx = interpolate.interp1d(self.solution.t_opt, x_opt, kind=3)
             self.solution.traj.add(OptimalTrajectory(self.states[i].name, x_opt, fx))
 
         for i in range(len(self.controls)):
             u_opt = traj_opt[i+len(self.states)].full().flatten()
-            fu = interpolate.interp1d(self.solution.t, u_opt, kind=2)
+            fu = interpolate.interp1d(self.solution.t_opt, u_opt, kind=2)
             self.solution.traj.add(OptimalTrajectory(self.controls[i].name, u_opt, fu))
 
     def get_optimization_status(self) -> str:
@@ -493,12 +540,12 @@ class OptimalControlProblem():
     def evaluate_error(self, t=None, plot=False):
         if t is None:
             t = []
-            for i in range(0, len(self.solution.t)-2, 2):
-                t += np.linspace(self.solution.t[i], self.solution.t[i+1], 5, endpoint=False).tolist()
-                t += np.linspace(self.solution.t[i+1], self.solution.t[i+2], 5, endpoint=False).tolist()
+            for i in range(0, len(self.solution.t_opt)-2, 2):
+                t += np.linspace(self.solution.t_opt[i], self.solution.t_opt[i+1], 5, endpoint=False).tolist()
+                t += np.linspace(self.solution.t_opt[i+1], self.solution.t_opt[i+2], 5, endpoint=False).tolist()
             t += [self.time.final]
 
-        f_interpolated = interpolate.interp1d(self.solution.t, self.dynamic(self.solution.traj[0].values, self.solution.traj[1].values, self.solution.t).full().flatten(), kind=2)
+        f_interpolated = interpolate.interp1d(self.solution.t_opt, self.dynamic(self.solution.traj[0].values, self.solution.traj[1].values, self.solution.t_opt).full().flatten(), kind=2)
         
         # Error in differential equations
         self.solution.diff_error = self.dynamic(self.solution.traj[0].f(t), self.solution.traj[1].f(t), t) - f_interpolated(t)
@@ -507,7 +554,7 @@ class OptimalControlProblem():
     def plot_error(self):
         fig2 = plt.figure(2)
         fig2.suptitle('Erro in differential equations')
-        plt.plot(self.solution.t_error, self.solution.diff_error, self.solution.t, np.zeros(len(self.solution.t)), '.r')
+        plt.plot(self.solution.t_error, self.solution.diff_error, self.solution.t_opt, np.zeros(len(self.solution.t_opt)), '.r')
         plt.ylabel('Error')
         plt.xlabel('Time [h]')
         plt.grid(axis='both',linestyle='-.')
