@@ -3,8 +3,6 @@ from matplotlib import pyplot as plt
 import numpy as np
 from scipy import interpolate
 
-from utils import files
-
 class Time():
     """ 
     Rrepresents the time domain for a OptimalControlProblem.
@@ -54,16 +52,6 @@ class Variable:
         self.value = ca.MX.sym(self.name)
         self.max = max
         self.min = min
-
-
-class Variable:
-    def __init__(self, name, max, min):
-
-        self.name = name
-        self.value = ca.MX.sym(self.name)
-        self.max = max
-        self.min = min
-
 
 class VariableList:
     def __init__(self):
@@ -176,7 +164,219 @@ class VariableList:
         for variable in self.variables:
             max_values.append(variable.max)
         return max_values
+
+class Phase:
+    def __init__(self, name, model):
+        self.name = name
+        self.model = model
+        self.modelFunc = []
     
+    def set_model_function(self, func):
+        self.modelFunc = func
+
+class OptimalTrajectory():
+    def __init__(self, name: str, values, f):
+        self.name = name
+        self.values = values
+        self.f = f
+
+class OptimalTrajectoryList():
+    """
+    The OptimalTrajectoryList class represents a list of optimal trajectories. 
+    Each trajectory is an instance of the OptimalTrajectory class and is identified by a unique name. 
+    The class provides the ability to add new trajectories to the list and retrieve trajectories by either their index or name.
+    """
+
+    def __init__(self):
+        """
+        Initializes an empty OptimalTrajectoryList object.
+        """
+
+        self.trajectories = []
+    
+    def __getitem__(self, key) -> OptimalTrajectory:
+        """
+        Returns the trajectory at the given index or with the given name.
+
+        Args:
+            key: int or str
+                Index of the trajectory or name of the trajectory.
+
+        Returns:
+            OptimalTrajectory or None
+                Returns the OptimalTrajectory object at the given index or with the given name.
+                Returns None if no trajectory is found.
+        """
+
+        if isinstance(key, int):
+            return self.trajectories[key]
+        else:
+            return self.get(key)
+        
+    def add(self, trajectory):
+        """
+        Adds a new OptimalTrajectory object to the list.
+
+        Args:
+            trajectory: OptimalTrajectory
+                OptimalTrajectory object to add to the list.
+        """
+
+        self.trajectories.append(trajectory)
+        
+    def get(self, name) -> OptimalTrajectory:
+        """
+        Returns the trajectory with the given name.
+
+        Args:
+            name: str
+                Name of the trajectory.
+
+        Returns:
+            OptimalTrajectory or None
+                Returns the OptimalTrajectory object with the given name.
+                Returns None if no trajectory is found.
+        """
+
+        for trajectory in self.trajectories:
+            if trajectory.name == name:
+                return trajectory
+        return None
+
+class OptimalControlProblem():
+    def __init__(self, name: str, controls: VariableList, states: VariableList, time: Time):
+        self.name = name
+        self.controls = controls
+        self.states = states
+        self.time = time
+        self.npl = NonlinearProgrammingProblem()
+        self.phases = []
+
+    def set_phases(self, phases: list):
+        for i in range(len(phases)):
+            phases[i].set_model_function(self.buil_model_function(phases[i].model))
+        self.phases = phases
+        
+    def buil_model_function(self, dynamic):
+        if isinstance(dynamic, list):
+            dynamic = ca.hcat(dynamic)
+
+        return ca.Function(
+            'F', 
+            [ca.hcat(self.states.get_all_values()), ca.hcat(self.controls.get_all_values()), self.time.value],
+            [dynamic], 
+            ['x', 'u', 't'], 
+            ['x_dot'])
+    
+    def set_langrange_cost(self, l_cost):
+        self.langrange_cost = ca.Function(
+            'L', 
+            [ca.hcat(self.states.get_all_values()), ca.hcat(self.controls.get_all_values()), self.time.value],
+            [l_cost],
+            ['x', 'u', 't'],
+            ['L'])
+    
+    def set_mayer_cost(self, m_cost):
+        self.mayer_cost = ca.Function('M', 
+            [ca.hcat(self.states.get_all_values()), ca.hcat(self.controls.get_all_values()), self.time.value],
+            [m_cost],
+            ['x', 'u', 't'],
+            ['M'])
+
+    def set_guess(self, control, state):
+        self.guess = type('guess', (object,), {})()
+        self.guess.controls = control
+        self.guess.states = state
+
+    def solve(self):
+        self.npl.build_npl(
+            self.phases[0].modelFunc,
+            self.langrange_cost,
+            self.controls,
+            self.states,
+            self.time,
+            self.guess)
+        
+        [cost, traj_opt] = self.npl.solve()
+
+        self.solution = type('solution', (object,), {})()
+        #self.solution.t = np.linspace(0, self.time.final, num=2*self.time.nGrid-1, endpoint=True)
+        self.solution.cost = cost
+        self.solution.traj = OptimalTrajectoryList()
+        
+        t_opt = traj_opt[2].full().flatten()
+        t_aux = []
+        for i in range(self.time.nGrid-1):
+            t_mid = (t_opt[i+1]-t_opt[i])/2
+            t_aux += [t_opt[i]]
+            t_aux += [t_opt[i] + t_mid]
+        t_aux += [t_opt[-1]]
+        self.solution.t_opt = t_aux
+
+        for i in range(len(self.states)):
+            x_opt = traj_opt[i].full().flatten()
+            fx = interpolate.interp1d(self.solution.t_opt, x_opt, kind=3)
+            self.solution.traj.add(OptimalTrajectory(self.states[i].name, x_opt, fx))
+
+        for i in range(len(self.controls)):
+            u_opt = traj_opt[i+len(self.states)].full().flatten()
+            fu = interpolate.interp1d(self.solution.t_opt, u_opt, kind=2)
+            self.solution.traj.add(OptimalTrajectory(self.controls[i].name, u_opt, fu))
+
+    def get_optimization_status(self) -> str:
+        optimzation_status = ''
+        with open(self.__ipopt_log_file) as file:
+            for line in file:
+                if line.startswith('EXIT'):
+                    optimzation_status = line.strip()[5:-1]
+        return optimzation_status
+
+    def plot_solution(self, t_plot=None):
+        if t_plot is None:
+            t_plot = np.linspace(0, self.time.final, num=10*self.time.nGrid, endpoint=True)
+
+        fig, axs = plt.subplots(2,1)
+        #fig.suptitle('Simulation Results: ' + optimzation_status + '\nCost: ' + str(self.solution.cost))
+        fig.suptitle('Simulation Results \nCost: ' + str(self.solution.cost))
+        axs[0].plot(t_plot/60, self.solution.traj['i_el'].f(t_plot), '-b')
+        axs[0].set_ylabel('Electrolyzer current [A]')
+        axs[0].grid(axis='both',linestyle='-.')
+        axs[0].set_xticks(np.arange(0, 26, 2))
+
+        axs[1].plot(t_plot/60, self.solution.traj['v_h2'].f(t_plot), '-g')
+        axs[1].set_ylabel('Hydrogen [Nm3]')
+        axs[1].set_xlabel('Time [h]')
+        axs[1].grid(axis='both',linestyle='-.')
+        axs[1].set_xticks(np.arange(0, 26, 2))
+
+        plt.show()
+        #plt.savefig(files.get_plot_file_name(__file__), bbox_inches='tight', dpi=300)
+
+    def evaluate_error(self, t=None, plot=False):
+        if t is None:
+            t = []
+            for i in range(0, len(self.solution.t_opt)-2, 2):
+                t += np.linspace(self.solution.t_opt[i], self.solution.t_opt[i+1], 5, endpoint=False).tolist()
+                t += np.linspace(self.solution.t_opt[i+1], self.solution.t_opt[i+2], 5, endpoint=False).tolist()
+            t += [self.time.final]
+
+        f_interpolated = interpolate.interp1d(self.solution.t_opt, self.phases[0].modelFunc(self.solution.traj[0].values, self.solution.traj[1].values, self.solution.t_opt).full().flatten(), kind=2)
+        
+        # Error in differential equations
+        self.solution.diff_error = self.phases[0].modelFunc(self.solution.traj[0].f(t), self.solution.traj[1].f(t), t) - f_interpolated(t)
+        self.solution.t_error = t
+
+    def plot_error(self):
+        fig2 = plt.figure(2)
+        fig2.suptitle('Erro in differential equations')
+        plt.plot(self.solution.t_error, self.solution.diff_error, self.solution.t_opt, np.zeros(len(self.solution.t_opt)), '.r')
+        plt.ylabel('Error')
+        plt.xlabel('Time [h]')
+        plt.grid(axis='both',linestyle='-.')
+        
+        plt.show()
+        #plt.savefig(files.get_plot_error_file_name(__file__), bbox_inches='tight', dpi=300)
+
 class NonlinearProgrammingProblem():
     def __init__(self, option=None):
         self.option = option
@@ -364,200 +564,3 @@ class NonlinearProgrammingProblem():
         traj_opt = trajectories(self.__sol['x'])
         
         return [self.__sol['f'], traj_opt]
-
-class OptimalTrajectory():
-    def __init__(self, name: str, values, f):
-        self.name = name
-        self.values = values
-        self.f = f
-
-class OptimalTrajectoryList():
-    """
-    The OptimalTrajectoryList class represents a list of optimal trajectories. 
-    Each trajectory is an instance of the OptimalTrajectory class and is identified by a unique name. 
-    The class provides the ability to add new trajectories to the list and retrieve trajectories by either their index or name.
-    """
-
-    def __init__(self):
-        """
-        Initializes an empty OptimalTrajectoryList object.
-        """
-
-        self.trajectories = []
-    
-    def __getitem__(self, key) -> OptimalTrajectory:
-        """
-        Returns the trajectory at the given index or with the given name.
-
-        Args:
-            key: int or str
-                Index of the trajectory or name of the trajectory.
-
-        Returns:
-            OptimalTrajectory or None
-                Returns the OptimalTrajectory object at the given index or with the given name.
-                Returns None if no trajectory is found.
-        """
-
-        if isinstance(key, int):
-            return self.trajectories[key]
-        else:
-            return self.get(key)
-        
-    def add(self, trajectory):
-        """
-        Adds a new OptimalTrajectory object to the list.
-
-        Args:
-            trajectory: OptimalTrajectory
-                OptimalTrajectory object to add to the list.
-        """
-
-        self.trajectories.append(trajectory)
-        
-    def get(self, name) -> OptimalTrajectory:
-        """
-        Returns the trajectory with the given name.
-
-        Args:
-            name: str
-                Name of the trajectory.
-
-        Returns:
-            OptimalTrajectory or None
-                Returns the OptimalTrajectory object with the given name.
-                Returns None if no trajectory is found.
-        """
-
-        for trajectory in self.trajectories:
-            if trajectory.name == name:
-                return trajectory
-        return None
-
-class OptimalControlProblem():
-    def __init__(self, name: str, controls: VariableList, states: VariableList, time: Time):
-        self.name = name
-        self.controls = controls
-        self.states = states
-        self.time = time
-        self.npl = NonlinearProgrammingProblem()
-        
-    def set_dynamic(self, dynamic):
-        if isinstance(dynamic, list):
-            dynamic = ca.hcat(dynamic)
-
-        self.dynamic = ca.Function(
-            'F', 
-            [ca.hcat(self.states.get_all_values()), ca.hcat(self.controls.get_all_values()), self.time.value],
-            [dynamic], 
-            ['x', 'u', 't'], 
-            ['x_dot'])
-    
-    def set_langrange_cost(self, l_cost):
-        self.langrange_cost = ca.Function(
-            'L', 
-            [ca.hcat(self.states.get_all_values()), ca.hcat(self.controls.get_all_values()), self.time.value],
-            [l_cost],
-            ['x', 'u', 't'],
-            ['L'])
-    
-    def set_mayer_cost(self, m_cost):
-        self.mayer_cost = ca.Function('M', 
-            [ca.hcat(self.states.get_all_values()), ca.hcat(self.controls.get_all_values()), self.time.value],
-            [m_cost],
-            ['x', 'u', 't'],
-            ['M'])
-
-    def set_guess(self, control, state):
-        self.guess = type('guess', (object,), {})()
-        self.guess.controls = control
-        self.guess.states = state
-
-    def solve(self):
-        self.npl.build_npl(
-            self.dynamic,
-            self.langrange_cost,
-            self.controls,
-            self.states,
-            self.time,
-            self.guess)
-        
-        [cost, traj_opt] = self.npl.solve()
-
-        self.solution = type('solution', (object,), {})()
-        #self.solution.t = np.linspace(0, self.time.final, num=2*self.time.nGrid-1, endpoint=True)
-        self.solution.cost = cost
-        self.solution.traj = OptimalTrajectoryList()
-        
-        t_opt = traj_opt[2].full().flatten()
-        t_aux = []
-        for i in range(self.time.nGrid-1):
-            t_mid = (t_opt[i+1]-t_opt[i])/2
-            t_aux += [t_opt[i]]
-            t_aux += [t_opt[i] + t_mid]
-        t_aux += [t_opt[-1]]
-        self.solution.t_opt = t_aux
-
-        for i in range(len(self.states)):
-            x_opt = traj_opt[i].full().flatten()
-            fx = interpolate.interp1d(self.solution.t_opt, x_opt, kind=3)
-            self.solution.traj.add(OptimalTrajectory(self.states[i].name, x_opt, fx))
-
-        for i in range(len(self.controls)):
-            u_opt = traj_opt[i+len(self.states)].full().flatten()
-            fu = interpolate.interp1d(self.solution.t_opt, u_opt, kind=2)
-            self.solution.traj.add(OptimalTrajectory(self.controls[i].name, u_opt, fu))
-
-    def get_optimization_status(self) -> str:
-        optimzation_status = ''
-        with open(self.__ipopt_log_file) as file:
-            for line in file:
-                if line.startswith('EXIT'):
-                    optimzation_status = line.strip()[5:-1]
-        return optimzation_status
-
-    def plot_solution(self, t_plot=None):
-        if t_plot is None:
-            t_plot = np.linspace(0, self.time.final, num=10*self.time.nGrid, endpoint=True)
-
-        fig, axs = plt.subplots(2,1)
-        #fig.suptitle('Simulation Results: ' + optimzation_status + '\nCost: ' + str(self.solution.cost))
-        fig.suptitle('Simulation Results \nCost: ' + str(self.solution.cost))
-        axs[0].plot(t_plot/60, self.solution.traj['i_el'].f(t_plot), '-b')
-        axs[0].set_ylabel('Electrolyzer current [A]')
-        axs[0].grid(axis='both',linestyle='-.')
-        axs[0].set_xticks(np.arange(0, 26, 2))
-
-        axs[1].plot(t_plot/60, self.solution.traj['v_h2'].f(t_plot), '-g')
-        axs[1].set_ylabel('Hydrogen [Nm3]')
-        axs[1].set_xlabel('Time [h]')
-        axs[1].grid(axis='both',linestyle='-.')
-        axs[1].set_xticks(np.arange(0, 26, 2))
-
-        plt.show()
-        #plt.savefig(files.get_plot_file_name(__file__), bbox_inches='tight', dpi=300)
-
-    def evaluate_error(self, t=None, plot=False):
-        if t is None:
-            t = []
-            for i in range(0, len(self.solution.t_opt)-2, 2):
-                t += np.linspace(self.solution.t_opt[i], self.solution.t_opt[i+1], 5, endpoint=False).tolist()
-                t += np.linspace(self.solution.t_opt[i+1], self.solution.t_opt[i+2], 5, endpoint=False).tolist()
-            t += [self.time.final]
-
-        f_interpolated = interpolate.interp1d(self.solution.t_opt, self.dynamic(self.solution.traj[0].values, self.solution.traj[1].values, self.solution.t_opt).full().flatten(), kind=2)
-        
-        # Error in differential equations
-        self.solution.diff_error = self.dynamic(self.solution.traj[0].f(t), self.solution.traj[1].f(t), t) - f_interpolated(t)
-        self.solution.t_error = t
-
-    def plot_error(self):
-        fig2 = plt.figure(2)
-        fig2.suptitle('Erro in differential equations')
-        plt.plot(self.solution.t_error, self.solution.diff_error, self.solution.t_opt, np.zeros(len(self.solution.t_opt)), '.r')
-        plt.ylabel('Error')
-        plt.xlabel('Time [h]')
-        plt.grid(axis='both',linestyle='-.')
-        
-        plt.show()
-        #plt.savefig(files.get_plot_error_file_name(__file__), bbox_inches='tight', dpi=300)

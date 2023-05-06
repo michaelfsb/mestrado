@@ -1,5 +1,5 @@
 # Imports
-from ocp.opdas import OptimalControlProblem, Time, VariableList
+from ocp.opdas import OptimalControlProblem, Time, VariableList, Phase
 from models.electrolyzer import electrolyzer_model
 from models.input_data import HydrogenDemand, Irradiation
 from models.photovoltaic_panel import pv_model
@@ -20,10 +20,12 @@ problem = OptimalControlProblem(name='ocp-1', controls=controls, states=states, 
 [i_ps, v_ps, p_ps] = pv_model(Irradiation(t.value)) 
 v_h2_dot = thank_model(f_h2, HydrogenDemand(t.value)) 
 
+phase_1 = Phase(name='on', model=v_h2_dot)
+problem.set_phases([phase_1])
+
 # Lagrange cost function
 f_l = (p_el - p_ps)**2
 
-problem.set_dynamic(v_h2_dot)
 problem.set_langrange_cost(f_l)
 
 problem.set_guess(control=[30], state=[0.65])
