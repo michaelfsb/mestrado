@@ -283,13 +283,18 @@ class OptimalControlProblem():
 
     def solve(self):
         self.create_npl()
-        self.build_npl(self.phases[0].modelFunc, self.langrange_cost)
+        self.build_npl()
         [cost, traj_opt] = self.solve_npl()
+        self.get_solution(cost, traj_opt)
 
+    def get_solution(self, cost, traj_opt):
         self.solution = type('solution', (object,), {})()
         self.solution.cost = cost
         self.solution.traj = OptimalTrajectoryList()
-        
+        self.get_solution_time(traj_opt)
+        self.get_solution_variables(traj_opt)
+
+    def get_solution_time(self, traj_opt):
         t_opt = traj_opt[2].full().flatten()
         t_aux = []
         for i in range(self.time.nGrid-1):
@@ -298,7 +303,8 @@ class OptimalControlProblem():
             t_aux += [t_opt[i] + t_mid]
         t_aux += [t_opt[-1]]
         self.solution.t_opt = t_aux
-
+    
+    def get_solution_variables(self, traj_opt):
         for i in range(len(self.states)):
             x_opt = traj_opt[i].full().flatten()
             fx = interpolate.interp1d(self.solution.t_opt, x_opt, kind=3)
@@ -383,59 +389,27 @@ class OptimalControlProblem():
         self.npl.x0 += [guess]
         self.npl.aux.T += [v]
     
-    def build_npl(self, F :ca.Function, L :ca.Function):
-        for k in np.arange(0, 2*self.time.nGrid - 2, 2):
-            i = int(k/2)
-            dt = self.npl.sym.T[i+1]-self.npl.sym.T[i]
+    def build_npl(self):
 
-            # Defects
-            f_k_0 = F(self.npl.sym.X[k][0], ca.hcat(self.npl.sym.U[k]), self.npl.sym.T[i])
-            f_k_1 = F(self.npl.sym.X[k+1][0], ca.hcat(self.npl.sym.U[k+1]), self.npl.sym.T[i] + dt/2)
-            f_k_2 = F(self.npl.sym.X[k+2][0], ca.hcat(self.npl.sym.U[k+2]), self.npl.sym.T[i+1])
+        # TO DO - Fazer esse laço funcionar para cada fase quando tem mais de uma
+        for i in range(len(self.phases)):
+            self.hermit_simpson_collocation(
+                self.phases[i].modelFunc, 
+                self.langrange_cost,
+                self.npl.sym.X,
+                self.npl.sym.U,
+                self.npl.sym.T)
 
-            g = self.npl.sym.X[k+2][0] - self.npl.sym.X[k][0] - dt*(f_k_0 + 4*f_k_1 + f_k_2)/6
-            self.add_constraint(g, 0, 0)
-            
-            g = self.npl.sym.X[k+1][0] - (self.npl.sym.X[k+2][0] + self.npl.sym.X[k][0])/2 - dt*(f_k_0 - f_k_2)/8
-            self.add_constraint(g, 0, 0)
+        # Set time constraints to assegure that each instant of time is greater than the previous one
+        self.set_time_constraints()
 
-            # Langrange cost
-            w_k_0 = L(self.npl.sym.X[k][0], ca.hcat(self.npl.sym.U[k]), self.npl.sym.T[i])
-            w_k_1 = L(self.npl.sym.X[k+1][0], ca.hcat(self.npl.sym.U[k+1]), self.npl.sym.T[i] + dt/2)
-            w_k_2 = L(self.npl.sym.X[k+2][0], ca.hcat(self.npl.sym.U[k+2]), self.npl.sym.T[i+1])
-
-            self.npl.f += dt*(w_k_0 + 4*w_k_1 + w_k_2)/6
-
-            # Time constraints
-            g = self.npl.sym.T[i+1] - self.npl.sym.T[i]
-            self.add_constraint(g, 0, ca.inf)
-
-        # Add states and controls as optimization variables to the NLP
-        for k in range(2*self.time.nGrid - 1):
-            self.add_variable_u(
-                self.npl.sym.U[k], 
-                self.controls.get_all_min_values(), 
-                self.controls.get_all_max_values(), 
-                self.guess.controls)
-
-            self.add_variable_x(
-                self.npl.sym.X[k],
-                self.states.get_all_min_values(),
-                self.states.get_all_max_values(),
-                self.guess.states)
+        # Add states, controls, and time as optimization variables to the NLP
+        self.set_optimization_variables()
             
         # Set the initial condition for the state
         self.npl.lbx[len(self.controls)] = self.guess.states[0]
         self.npl.ubx[len(self.controls)] = self.guess.states[0]
 
-        # Add time as optimization variable to the NLP
-        for k in range(self.time.nGrid):
-            self.add_variable_t(
-                self.npl.sym.T[k],
-                self.time.initial,
-                self.time.final,
-                self.time.tGrid[k])
-        
         # Set the initial condition for the time
         # Start time
         self.npl.lbx[-self.time.nGrid] = self.time.initial
@@ -466,6 +440,55 @@ class OptimalControlProblem():
 
         # Use IPOPT as the NLP solver
         self.solver = ca.nlpsol('solver', 'ipopt', prob, opts)
+
+    def set_optimization_variables(self):
+        for k in range(2*self.time.nGrid - 1):
+            self.add_variable_u(
+                self.npl.sym.U[k], 
+                self.controls.get_all_min_values(), 
+                self.controls.get_all_max_values(), 
+                self.guess.controls)
+
+            self.add_variable_x(
+                self.npl.sym.X[k],
+                self.states.get_all_min_values(),
+                self.states.get_all_max_values(),
+                self.guess.states)
+        
+        for k in range(self.time.nGrid):
+            self.add_variable_t(
+                self.npl.sym.T[k],
+                self.time.initial,
+                self.time.final,
+                self.time.tGrid[k])
+
+    def hermit_simpson_collocation(self, F: ca.Function, L: ca.Function, X: ca.SX, U: ca.SX, T: ca.SX):
+        for k in np.arange(0, 2*self.time.nGrid - 2, 2):
+            i = int(k/2)
+            dt = T[i+1]-T[i]
+
+            # Defects
+            f_k_0 = F(X[k][0], ca.hcat(U[k]), T[i])
+            f_k_1 = F(X[k+1][0], ca.hcat(U[k+1]), T[i] + dt/2)
+            f_k_2 = F(X[k+2][0], ca.hcat(U[k+2]), T[i+1])
+
+            g = X[k+2][0] - X[k][0] - dt*(f_k_0 + 4*f_k_1 + f_k_2)/6
+            self.add_constraint(g, 0, 0)
+            
+            g = X[k+1][0] - (X[k+2][0] + X[k][0])/2 - dt*(f_k_0 - f_k_2)/8
+            self.add_constraint(g, 0, 0)
+
+            # Langrange cost
+            w_k_0 = L(X[k][0], ca.hcat(U[k]), T[i])
+            w_k_1 = L(X[k+1][0], ca.hcat(U[k+1]), T[i] + dt/2)
+            w_k_2 = L(X[k+2][0], ca.hcat(U[k+2]), T[i+1])
+
+            self.npl.f += dt*(w_k_0 + 4*w_k_1 + w_k_2)/6
+
+    def set_time_constraints(self):
+        for k in range(self.time.nGrid-1):
+            g = self.npl.sym.T[k+1] - self.npl.sym.T[k]
+            self.add_constraint(g, 0, ca.inf)
     
     def solve_npl(self) -> list:
         self.__sol = self.solver(
