@@ -15,7 +15,7 @@ class Time():
     :param dt: A numeric value representing the time step size.
     """
 
-    def __init__(self, initial: float, final: float, nGrid: int):
+    def __init__(self, initial: float, final: float, nGridPerPhase: int):
         """
         Creates a new Time object with the given bounds.
 
@@ -31,9 +31,10 @@ class Time():
         self.value = ca.MX.sym(self.name)
         self.initial = initial
         self.final = final
-        self.nGrid = nGrid
-        self.tGrid = np.linspace(initial, final, num=nGrid, endpoint=True)
-        self.dt = (final - initial)/nGrid
+        self.nGrid = 0
+        self.nGridPerPhase = nGridPerPhase
+        self.tGrid = []
+        self.dt = (final - initial)/nGridPerPhase
 
 class Variable():
     def __init__(self, name, max, min):
@@ -256,6 +257,8 @@ class OptimalControlProblem():
         for i in range(len(phases)):
             phases[i].set_model_function(self.buil_model_function(phases[i].model))
         self.phases = phases
+        self.time.nGrid = len(self.phases)*self.time.nGridPerPhase
+        
         
     def buil_model_function(self, dynamic):
         if isinstance(dynamic, list):
@@ -297,22 +300,26 @@ class OptimalControlProblem():
     def get_solution_time(self, traj_opt):
         t_opt = traj_opt[2].full().flatten()
         t_aux = []
-        for i in range(self.time.nGrid-1):
-            t_mid = (t_opt[i+1]-t_opt[i])/2
-            t_aux += [t_opt[i]]
-            t_aux += [t_opt[i] + t_mid]
-        t_aux += [t_opt[-1]]
+        for i in range(len(self.phases)):
+            for j in range(self.time.nGridPerPhase-1):
+                k = i*self.time.nGridPerPhase + j
+                t_mid = (t_opt[k+1]-t_opt[k])/2
+                t_aux += [t_opt[k]]
+                t_aux += [t_opt[k] + t_mid]
+            t_aux += [t_opt[self.time.nGridPerPhase-1]]
         self.solution.t_opt = t_aux
     
     def get_solution_variables(self, traj_opt):
         for i in range(len(self.states)):
             x_opt = traj_opt[i].full().flatten()
-            fx = interpolate.interp1d(self.solution.t_opt, x_opt, kind=3)
+            #fx = interpolate.interp1d(self.solution.t_opt, x_opt, kind=3)
+            fx = 0
             self.solution.traj.add(OptimalTrajectory(self.states[i].name, x_opt, fx))
 
         for i in range(len(self.controls)):
             u_opt = traj_opt[i+len(self.states)].full().flatten()
-            fu = interpolate.interp1d(self.solution.t_opt, u_opt, kind=2)
+            #fu = interpolate.interp1d(self.solution.t_opt, u_opt, kind=2)
+            fu = 0
             self.solution.traj.add(OptimalTrajectory(self.controls[i].name, u_opt, fu))
 
     def get_optimization_status(self) -> str:
@@ -341,19 +348,20 @@ class OptimalControlProblem():
         self.npl.aux.U = []
         self.npl.aux.T = []
 
-        for k in np.arange(0, self.time.nGrid-.5, .5):
-            variable_X = []
-            for j in range(len(self.states)):
-                variable_X += [ca.MX.sym('X_' + str(j) + '_' + str(k))]
-            self.npl.sym.X += [variable_X]
+        for i in range(len(self.phases)):
+            for k in np.arange(0, self.time.nGridPerPhase-.5, .5):
+                variable_X = []
+                for j in range(len(self.states)):
+                    variable_X += [ca.MX.sym('X_' + str(j) + '_' + str(i) + '_' + str(k))]
+                self.npl.sym.X += [variable_X]
 
-            variable_U = []
-            for j in range(len(self.controls)):
-                variable_U += [ca.MX.sym('U_' + str(j) + '_' + str(k))]
-            self.npl.sym.U += [variable_U]
+                variable_U = []
+                for j in range(len(self.controls)):
+                    variable_U += [ca.MX.sym('U_' + str(j) + '_' + str(i) + '_' + str(k))]
+                self.npl.sym.U += [variable_U]
         
-        for k in range(self.time.nGrid):
-            self.npl.sym.T.append(ca.MX.sym('T_' + str(k)))
+            for k in range(self.time.nGridPerPhase):
+                self.npl.sym.T.append(ca.MX.sym('T_' + str(i) + '_' + str(k)))
         
         for k in range(len(self.states)):
             self.npl.aux.X.append([])
@@ -390,25 +398,43 @@ class OptimalControlProblem():
         self.npl.aux.T += [v]
     
     def build_npl(self):
-
-        # TO DO - Fazer esse laço funcionar para cada fase quando tem mais de uma
+        tInitial = self.time.initial
         for i in range(len(self.phases)):
+            ini = i*self.time.nGridPerPhase
+            end = 2*(i+1)*self.time.nGridPerPhase - 1
+            endT = (i+1)*self.time.nGridPerPhase
             self.hermit_simpson_collocation(
                 self.phases[i].modelFunc, 
                 self.langrange_cost,
-                self.npl.sym.X,
-                self.npl.sym.U,
-                self.npl.sym.T)
+                self.npl.sym.X[ini:end],
+                self.npl.sym.U[ini:end],
+                self.npl.sym.T[ini:endT])
+            
+            # Set time constraints to assegure that each instant of time is greater than the previous one
+            tFinal = (i+1)*self.time.final/len(self.phases)
+            self.time.tGrid = np.concatenate((self.time.tGrid, np.linspace(tInitial, tFinal, num=self.time.nGridPerPhase, endpoint=True)), axis=None)
+            tInitial = tFinal
+            self.set_time_constraints(i)
+        
+        # Conect the phases
+        for i in range(len(self.phases) - 1):
+            # Conect the time between phases
+            j = (i+1)*self.time.nGridPerPhase - 1
+            g = self.npl.sym.T[j] - self.npl.sym.T[j+1]
+            self.add_constraint(g, 0, 0)
 
-        # Set time constraints to assegure that each instant of time is greater than the previous one
-        self.set_time_constraints()
+            # Conect the states between phases
+            k = 2*(i+1)*self.time.nGridPerPhase - 2
+            g = self.npl.sym.X[k][0] - self.npl.sym.X[k+1][0] # TO DO - Corrigir para tratar quando tem mais de um estado
+            self.add_constraint(g, 0, 0)
+
 
         # Add states, controls, and time as optimization variables to the NLP
         self.set_optimization_variables()
             
         # Set the initial condition for the state
-        self.npl.lbx[len(self.controls)] = self.guess.states[0]
-        self.npl.ubx[len(self.controls)] = self.guess.states[0]
+        self.npl.lbx[len(self.npl.sym.U)] = self.guess.states[0]
+        self.npl.ubx[len(self.npl.sym.U)] = self.guess.states[0]
 
         # Set the initial condition for the time
         # Start time
@@ -442,20 +468,21 @@ class OptimalControlProblem():
         self.solver = ca.nlpsol('solver', 'ipopt', prob, opts)
 
     def set_optimization_variables(self):
-        for k in range(2*self.time.nGrid - 1):
+        for k in range(len(self.npl.sym.U)):
             self.add_variable_u(
                 self.npl.sym.U[k], 
                 self.controls.get_all_min_values(), 
                 self.controls.get_all_max_values(), 
                 self.guess.controls)
 
+        for k in range(len(self.npl.sym.X)):
             self.add_variable_x(
                 self.npl.sym.X[k],
                 self.states.get_all_min_values(),
                 self.states.get_all_max_values(),
                 self.guess.states)
         
-        for k in range(self.time.nGrid):
+        for k in range(len(self.npl.sym.T)):
             self.add_variable_t(
                 self.npl.sym.T[k],
                 self.time.initial,
@@ -463,7 +490,7 @@ class OptimalControlProblem():
                 self.time.tGrid[k])
 
     def hermit_simpson_collocation(self, F: ca.Function, L: ca.Function, X: ca.SX, U: ca.SX, T: ca.SX):
-        for k in np.arange(0, 2*self.time.nGrid - 2, 2):
+        for k in np.arange(0, 2*self.time.nGridPerPhase - 2, 2):
             i = int(k/2)
             dt = T[i+1]-T[i]
 
@@ -485,8 +512,9 @@ class OptimalControlProblem():
 
             self.npl.f += dt*(w_k_0 + 4*w_k_1 + w_k_2)/6
 
-    def set_time_constraints(self):
-        for k in range(self.time.nGrid-1):
+    def set_time_constraints(self, nPhase : int):
+        for i in range(self.time.nGridPerPhase-1):
+            k = nPhase*self.time.nGridPerPhase + i
             g = self.npl.sym.T[k+1] - self.npl.sym.T[k]
             self.add_constraint(g, 0, ca.inf)
     
@@ -528,16 +556,18 @@ class OptimalControlProblem():
         fig, axs = plt.subplots(2,1)
         #fig.suptitle('Simulation Results: ' + optimzation_status + '\nCost: ' + str(self.solution.cost))
         fig.suptitle('Simulation Results \nCost: ' + str(self.solution.cost))
-        axs[0].plot(t_plot/60, self.solution.traj['i_el'].f(t_plot), '-b')
+        #axs[0].plot(t_plot/60, self.solution.traj['i_el'].f(t_plot), '-b')
+        axs[0].plot(self.solution.t_opt, self.solution.traj['i_el'].values, '.b')
         axs[0].set_ylabel('Electrolyzer current [A]')
         axs[0].grid(axis='both',linestyle='-.')
-        axs[0].set_xticks(np.arange(0, 26, 2))
+        #axs[0].set_xticks(np.arange(0, 26, 2))
 
-        axs[1].plot(t_plot/60, self.solution.traj['v_h2'].f(t_plot), '-g')
+        #axs[1].plot(t_plot/60, self.solution.traj['v_h2'].f(t_plot), '-g')
+        axs[1].plot(self.solution.t_opt, self.solution.traj['v_h2'].values, '.g')
         axs[1].set_ylabel('Hydrogen [Nm3]')
         axs[1].set_xlabel('Time [h]')
         axs[1].grid(axis='both',linestyle='-.')
-        axs[1].set_xticks(np.arange(0, 26, 2))
+        #axs[1].set_xticks(np.arange(0, 26, 2))
 
         plt.show()
         #plt.savefig(files.get_plot_file_name(__file__), bbox_inches='tight', dpi=300)
