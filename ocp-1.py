@@ -5,7 +5,7 @@ from models.input_data import HydrogenDemand, Irradiation
 from models.photovoltaic_panel import pv_model
 from models.tank import thank_model
 
-t = Time(initial=0, final=1440, nGridPerPhase=10)
+t = Time(initial=0, final=1440, nGridPerPhase=20)
 
 states = VariableList()
 states.add(name='v_h2', min=0.6, max=2.5)
@@ -28,7 +28,7 @@ f_l = (p_el - p_ps)**2
 
 problem.set_langrange_cost(f_l)
 
-problem.set_guess(control=[30], state=[0.65])
+problem.set_guess(control=[30], state=[2.5])
 
 problem.solve()
 
