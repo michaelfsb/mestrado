@@ -425,7 +425,7 @@ class OptimalControlProblem():
             self.add_constraint(g, 0, 0)
 
             # Conect the states between phases
-            k = 2*(i+1)*self.time.nGridPerPhase - 2
+            k = (i+1)*(2*self.time.nGridPerPhase - 1) - 1
             g = self.npl.sym.X[k][0] - self.npl.sym.X[k+1][0] # TO DO - Corrigir para tratar quando tem mais de um estado
             self.add_constraint(g, 0, 0)
 
