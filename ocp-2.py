@@ -33,7 +33,7 @@ problem.set_langrange_cost(f_l)
 
 problem.set_langrange_cost(f_l)
 
-problem.set_guess(control=[30, 1], state=[2.5])
+problem.set_guess(control=[30], state=[2.5])
 
 problem.solve()
 
