@@ -176,7 +176,7 @@ class Phase():
         self.modelFunc = func
 
 class OptimalTrajectory():
-    def __init__(self, name: str, values, f):
+    def __init__(self, name: str, values, f: list):
         self.name = name
         self.values = values
         self.f = f
@@ -520,6 +520,8 @@ class OptimalControlProblem():
         self.get_solution_variables(traj_opt)
 
     def get_solution_time(self, traj_opt):
+        """Get the time solution of the optimization problem with the intermediate points"""
+
         t_opt = traj_opt[2].full().flatten()
         self.solution.t = []
         for i in range(len(self.phases)):
@@ -530,16 +532,24 @@ class OptimalControlProblem():
             self.solution.t += [t_opt[(i+1)*self.time.nGridPerPhase-1]]
     
     def get_solution_variables(self, traj_opt):
+        """Get the solution of the optimization problem"""
+    
         for i in range(len(self.states)):
             x_opt = traj_opt[i].full().flatten()
-            #fx = interpolate.interp1d(self.solution.t, x_opt, kind=3)
-            fx = 0
+            fx = []
+            for j in range(len(self.phases)):
+                ini = j*(2*self.time.nGridPerPhase - 1)
+                end = (j+1)*(2*self.time.nGridPerPhase - 1)
+                fx += [interpolate.interp1d(self.solution.t[ini:end], x_opt[ini:end], kind=3)]
             self.solution.traj.add(OptimalTrajectory(self.states[i].name, x_opt, fx))
 
         for i in range(len(self.controls)):
             u_opt = traj_opt[i+len(self.states)].full().flatten()
-            #fu = interpolate.interp1d(self.solution.t, u_opt, kind=2)
-            fu = 0
+            fu = []
+            for j in range(len(self.phases)):
+                ini = j*(2*self.time.nGridPerPhase - 1)
+                end = (j+1)*(2*self.time.nGridPerPhase - 1)
+                fu += [interpolate.interp1d(self.solution.t[ini:end], u_opt[ini:end], kind=2)]
             self.solution.traj.add(OptimalTrajectory(self.controls[i].name, u_opt, fu))
 
 ####################################################################################################   
