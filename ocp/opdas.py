@@ -521,26 +521,24 @@ class OptimalControlProblem():
 
     def get_solution_time(self, traj_opt):
         t_opt = traj_opt[2].full().flatten()
-        t_aux = []
+        self.solution.t = []
         for i in range(len(self.phases)):
             for j in range(self.time.nGridPerPhase-1):
                 k = i*self.time.nGridPerPhase + j
-                t_mid = (t_opt[k+1]-t_opt[k])/2
-                t_aux += [t_opt[k]]
-                t_aux += [t_opt[k] + t_mid]
-            t_aux += [t_opt[(i+1)*self.time.nGridPerPhase-1]]
-        self.solution.t_opt = t_aux
+                self.solution.t += [t_opt[k]]
+                self.solution.t += [t_opt[k] + (t_opt[k+1]-t_opt[k])/2]
+            self.solution.t += [t_opt[(i+1)*self.time.nGridPerPhase-1]]
     
     def get_solution_variables(self, traj_opt):
         for i in range(len(self.states)):
             x_opt = traj_opt[i].full().flatten()
-            #fx = interpolate.interp1d(self.solution.t_opt, x_opt, kind=3)
+            #fx = interpolate.interp1d(self.solution.t, x_opt, kind=3)
             fx = 0
             self.solution.traj.add(OptimalTrajectory(self.states[i].name, x_opt, fx))
 
         for i in range(len(self.controls)):
             u_opt = traj_opt[i+len(self.states)].full().flatten()
-            #fu = interpolate.interp1d(self.solution.t_opt, u_opt, kind=2)
+            #fu = interpolate.interp1d(self.solution.t, u_opt, kind=2)
             fu = 0
             self.solution.traj.add(OptimalTrajectory(self.controls[i].name, u_opt, fu))
 
@@ -554,15 +552,15 @@ class OptimalControlProblem():
         #fig.suptitle('Simulation Results: ' + optimzation_status + '\nCost: ' + str(self.solution.cost))
         fig.suptitle('Simulation Results \nCost: ' + str(self.solution.cost))
         #axs[0].plot(t_plot/60, self.solution.traj['i_el'].f(t_plot), '-b')
-        axs[0].plot(self.solution.t_opt, self.solution.traj['i_el'].values, '-b')
-        axs[0].plot(self.solution.t_opt, self.solution.traj['i_el'].values, '.b')
+        axs[0].plot(self.solution.t, self.solution.traj['i_el'].values, '-b')
+        axs[0].plot(self.solution.t, self.solution.traj['i_el'].values, '.b')
         axs[0].set_ylabel('Electrolyzer current [A]')
         axs[0].grid(axis='both',linestyle='-.')
         #axs[0].set_xticks(np.arange(0, 26, 2))
 
         #axs[1].plot(t_plot/60, self.solution.traj['v_h2'].f(t_plot), '-g')
-        axs[1].plot(self.solution.t_opt, self.solution.traj['v_h2'].values, '-g')
-        axs[1].plot(self.solution.t_opt, self.solution.traj['v_h2'].values, '.g')
+        axs[1].plot(self.solution.t, self.solution.traj['v_h2'].values, '-g')
+        axs[1].plot(self.solution.t, self.solution.traj['v_h2'].values, '.g')
         axs[1].set_ylabel('Hydrogen [Nm3]')
         axs[1].set_xlabel('Time [h]')
         axs[1].grid(axis='both',linestyle='-.')
@@ -574,12 +572,12 @@ class OptimalControlProblem():
     def evaluate_error(self, t=None, plot=False):
         if t is None:
             t = []
-            for i in range(0, len(self.solution.t_opt)-2, 2):
-                t += np.linspace(self.solution.t_opt[i], self.solution.t_opt[i+1], 5, endpoint=False).tolist()
-                t += np.linspace(self.solution.t_opt[i+1], self.solution.t_opt[i+2], 5, endpoint=False).tolist()
+            for i in range(0, len(self.solution.t)-2, 2):
+                t += np.linspace(self.solution.t[i], self.solution.t[i+1], 5, endpoint=False).tolist()
+                t += np.linspace(self.solution.t[i+1], self.solution.t[i+2], 5, endpoint=False).tolist()
             t += [self.time.final]
 
-        f_interpolated = interpolate.interp1d(self.solution.t_opt, self.phases[0].modelFunc(self.solution.traj[0].values, self.solution.traj[1].values, self.solution.t_opt).full().flatten(), kind=2)
+        f_interpolated = interpolate.interp1d(self.solution.t, self.phases[0].modelFunc(self.solution.traj[0].values, self.solution.traj[1].values, self.solution.t).full().flatten(), kind=2)
         
         # Error in differential equations
         self.solution.diff_error = self.phases[0].modelFunc(self.solution.traj[0].f(t), self.solution.traj[1].f(t), t) - f_interpolated(t)
@@ -588,7 +586,7 @@ class OptimalControlProblem():
     def plot_error(self):
         fig2 = plt.figure(2)
         fig2.suptitle('Erro in differential equations')
-        plt.plot(self.solution.t_error, self.solution.diff_error, self.solution.t_opt, np.zeros(len(self.solution.t_opt)), '.r')
+        plt.plot(self.solution.t_error, self.solution.diff_error, self.solution.t, np.zeros(len(self.solution.t)), '.r')
         plt.ylabel('Error')
         plt.xlabel('Time [h]')
         plt.grid(axis='both',linestyle='-.')
