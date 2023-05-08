@@ -255,12 +255,12 @@ class OptimalControlProblem():
 
     def set_phases(self, phases: list):
         for i in range(len(phases)):
-            phases[i].set_model_function(self.buil_model_function(phases[i].model, phases[i].name))
+            phases[i].set_model_function(self.__buil_model_function(phases[i].model, phases[i].name))
         self.phases = phases
         self.time.nGrid = len(self.phases)*self.time.nGridPerPhase
         
         
-    def buil_model_function(self, dynamic, phase_name: str):
+    def __buil_model_function(self, dynamic, phase_name: str):
         if isinstance(dynamic, list):
             dynamic = ca.hcat(dynamic)
 
@@ -290,46 +290,6 @@ class OptimalControlProblem():
         [cost, traj_opt] = self.solve_npl()
         self.get_solution(cost, traj_opt)
 
-    def get_solution(self, cost, traj_opt):
-        self.solution = type('solution', (object,), {})()
-        self.solution.cost = cost
-        self.solution.traj = OptimalTrajectoryList()
-        self.get_solution_time(traj_opt)
-        self.get_solution_variables(traj_opt)
-
-    def get_solution_time(self, traj_opt):
-        t_opt = traj_opt[2].full().flatten()
-        t_aux = []
-        for i in range(len(self.phases)):
-            for j in range(self.time.nGridPerPhase-1):
-                k = i*self.time.nGridPerPhase + j
-                t_mid = (t_opt[k+1]-t_opt[k])/2
-                t_aux += [t_opt[k]]
-                t_aux += [t_opt[k] + t_mid]
-            t_aux += [t_opt[(i+1)*self.time.nGridPerPhase-1]]
-        self.solution.t_opt = t_aux
-    
-    def get_solution_variables(self, traj_opt):
-        for i in range(len(self.states)):
-            x_opt = traj_opt[i].full().flatten()
-            #fx = interpolate.interp1d(self.solution.t_opt, x_opt, kind=3)
-            fx = 0
-            self.solution.traj.add(OptimalTrajectory(self.states[i].name, x_opt, fx))
-
-        for i in range(len(self.controls)):
-            u_opt = traj_opt[i+len(self.states)].full().flatten()
-            #fu = interpolate.interp1d(self.solution.t_opt, u_opt, kind=2)
-            fu = 0
-            self.solution.traj.add(OptimalTrajectory(self.controls[i].name, u_opt, fu))
-
-    def get_optimization_status(self) -> str:
-        optimzation_status = ''
-        with open(self.__ipopt_log_file) as file:
-            for line in file:
-                if line.startswith('EXIT'):
-                    optimzation_status = line.strip()[5:-1]
-        return optimzation_status
-    
     def create_npl(self):
         self.npl.f = 0
         self.npl.g = []
@@ -368,35 +328,7 @@ class OptimalControlProblem():
 
         for k in range(len(self.controls)):
             self.npl.aux.U.append([])
-    
-    def add_constraint(self, g, lbg, ubg):
-        self.npl.g += [g]
-        self.npl.lbg += [lbg]
-        self.npl.ubg += [ubg]
-
-    def add_variable_u(self, vList, minlist, maxList, guessList):
-        for i in range(len(vList)):
-            self.npl.x += [vList[i]]
-            self.npl.lbx += [minlist[i]]
-            self.npl.ubx += [maxList[i]]
-            self.npl.x0 += [guessList[i]]
-            self.npl.aux.U[i] += [vList[i]]
-
-    def add_variable_x(self, vList, minlist, maxList, guessList):
-        for i in range(len(vList)):
-            self.npl.x += [vList[i]]
-            self.npl.lbx += [minlist[i]]
-            self.npl.ubx += [maxList[i]]
-            self.npl.x0 += [guessList[i]]
-            self.npl.aux.X[i] += [vList[i]]
-    
-    def add_variable_t(self, v, min, max, guess):
-        self.npl.x += [v]
-        self.npl.lbx += [min]
-        self.npl.ubx += [max]
-        self.npl.x0 += [guess]
-        self.npl.aux.T += [v]
-    
+        
     def build_npl(self):
         tInitial = self.time.initial
         for i in range(len(self.phases)):
@@ -467,29 +399,7 @@ class OptimalControlProblem():
 
         # Use IPOPT as the NLP solver
         self.solver = ca.nlpsol('solver', 'ipopt', prob, opts)
-
-    def set_optimization_variables(self):
-        for k in range(len(self.npl.sym.U)):
-            self.add_variable_u(
-                self.npl.sym.U[k], 
-                self.controls.get_all_min_values(), 
-                self.controls.get_all_max_values(), 
-                self.guess.controls)
-
-        for k in range(len(self.npl.sym.X)):
-            self.add_variable_x(
-                self.npl.sym.X[k],
-                self.states.get_all_min_values(),
-                self.states.get_all_max_values(),
-                self.guess.states)
-        
-        for k in range(len(self.npl.sym.T)):
-            self.add_variable_t(
-                self.npl.sym.T[k],
-                self.time.initial,
-                self.time.final,
-                self.time.tGrid[k])
-
+    
     def hermit_simpson_collocation(self, F: ca.Function, L: ca.Function, X: ca.SX, U: ca.SX, T: ca.SX):
         for k in np.arange(0, 2*self.time.nGridPerPhase - 2, 2):
             i = int(k/2)
@@ -512,6 +422,56 @@ class OptimalControlProblem():
             w_k_2 = L(X[k+2][0], ca.hcat(U[k+2]), T[i+1])
 
             self.npl.f += dt*(w_k_0 + 4*w_k_1 + w_k_2)/6
+    
+    def add_constraint(self, g, lbg, ubg):
+        self.npl.g += [g]
+        self.npl.lbg += [lbg]
+        self.npl.ubg += [ubg]
+
+    def add_variable_u(self, vList, minlist, maxList, guessList):
+        for i in range(len(vList)):
+            self.npl.x += [vList[i]]
+            self.npl.lbx += [minlist[i]]
+            self.npl.ubx += [maxList[i]]
+            self.npl.x0 += [guessList[i]]
+            self.npl.aux.U[i] += [vList[i]]
+
+    def add_variable_x(self, vList, minlist, maxList, guessList):
+        for i in range(len(vList)):
+            self.npl.x += [vList[i]]
+            self.npl.lbx += [minlist[i]]
+            self.npl.ubx += [maxList[i]]
+            self.npl.x0 += [guessList[i]]
+            self.npl.aux.X[i] += [vList[i]]
+    
+    def add_variable_t(self, v, min, max, guess):
+        self.npl.x += [v]
+        self.npl.lbx += [min]
+        self.npl.ubx += [max]
+        self.npl.x0 += [guess]
+        self.npl.aux.T += [v]
+
+    def set_optimization_variables(self):
+        for k in range(len(self.npl.sym.U)):
+            self.add_variable_u(
+                self.npl.sym.U[k], 
+                self.controls.get_all_min_values(), 
+                self.controls.get_all_max_values(), 
+                self.guess.controls)
+
+        for k in range(len(self.npl.sym.X)):
+            self.add_variable_x(
+                self.npl.sym.X[k],
+                self.states.get_all_min_values(),
+                self.states.get_all_max_values(),
+                self.guess.states)
+        
+        for k in range(len(self.npl.sym.T)):
+            self.add_variable_t(
+                self.npl.sym.T[k],
+                self.time.initial,
+                self.time.final,
+                self.time.tGrid[k])
 
     def set_time_constraints(self, nPhase : int):
         for i in range(self.time.nGridPerPhase-1):
@@ -550,7 +510,41 @@ class OptimalControlProblem():
         
         traj_opt = trajectories(self.__sol['x'])
         
-        return [self.__sol['f'], traj_opt]
+        return [self.__sol['f'], traj_opt]   
+
+    def get_solution(self, cost, traj_opt):
+        self.solution = type('solution', (object,), {})()
+        self.solution.cost = cost
+        self.solution.traj = OptimalTrajectoryList()
+        self.get_solution_time(traj_opt)
+        self.get_solution_variables(traj_opt)
+
+    def get_solution_time(self, traj_opt):
+        t_opt = traj_opt[2].full().flatten()
+        t_aux = []
+        for i in range(len(self.phases)):
+            for j in range(self.time.nGridPerPhase-1):
+                k = i*self.time.nGridPerPhase + j
+                t_mid = (t_opt[k+1]-t_opt[k])/2
+                t_aux += [t_opt[k]]
+                t_aux += [t_opt[k] + t_mid]
+            t_aux += [t_opt[(i+1)*self.time.nGridPerPhase-1]]
+        self.solution.t_opt = t_aux
+    
+    def get_solution_variables(self, traj_opt):
+        for i in range(len(self.states)):
+            x_opt = traj_opt[i].full().flatten()
+            #fx = interpolate.interp1d(self.solution.t_opt, x_opt, kind=3)
+            fx = 0
+            self.solution.traj.add(OptimalTrajectory(self.states[i].name, x_opt, fx))
+
+        for i in range(len(self.controls)):
+            u_opt = traj_opt[i+len(self.states)].full().flatten()
+            #fu = interpolate.interp1d(self.solution.t_opt, u_opt, kind=2)
+            fu = 0
+            self.solution.traj.add(OptimalTrajectory(self.controls[i].name, u_opt, fu))
+
+####################################################################################################   
 
     def plot_solution(self, t_plot=None):
         if t_plot is None:
