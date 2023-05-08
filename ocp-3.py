@@ -11,7 +11,7 @@ states = VariableList()
 states.add(name='v_h2', min=0.6, max=2.5)
 
 controls = VariableList()
-controls.add(name='i_el', min=1, max=100)
+controls.add(name='i_el', min=20, max=100)
 
 problem = OptimalControlProblem(name='ocp-1', controls=controls, states=states, time=t)
 
@@ -33,7 +33,7 @@ problem.set_langrange_cost(f_l)
 
 problem.set_langrange_cost(f_l)
 
-problem.set_guess(control=[30, 1], state=[2.5])
+problem.set_guess(control=[30], state=[2.5])
 
 problem.solve()
 
