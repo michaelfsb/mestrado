@@ -13,7 +13,7 @@ states.add(name='v_h2', min=0.6, max=2.5)
 controls = VariableList()
 controls.add(name='i_el', min=20, max=100)
 
-problem = OptimalControlProblem(name='ocp-1', controls=controls, states=states, time=t)
+problem = OptimalControlProblem(name='ocp-3', controls=controls, states=states, time=t)
 
 # Models equations
 [f_h2, v_el, p_el] = electrolyzer_model(controls['i_el'])
@@ -24,7 +24,11 @@ phase_on = Phase(name='on', model=v_h2_dot)
 v_h2_dot_off = thank_model(0, HydrogenDemand(t.value)) 
 phase_off = Phase(name='off', model=v_h2_dot_off)
 
-problem.set_phases([phase_off, phase_on, phase_off])
+v_h2_dot_off2 = thank_model(0, HydrogenDemand(t.value)) 
+phase_off2 = Phase(name='off', model=v_h2_dot_off2)
+
+#problem.set_phases([phase_off, phase_on, phase_off])
+problem.set_phases([phase_off, phase_on, phase_off2])
 
 # Lagrange cost function
 f_l = (p_el - p_ps)**2
