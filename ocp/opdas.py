@@ -171,6 +171,7 @@ class Phase():
         self.name = name
         self.model = model
         self.modelFunc = []
+        t = []
     
     def set_model_function(self, func):
         self.modelFunc = func
@@ -333,7 +334,7 @@ class OptimalControlProblem():
         tInitial = self.time.initial
         for i in range(len(self.phases)):
             ini = i*(2*self.time.nGridPerPhase - 1)
-            end = 2*(i+1)*self.time.nGridPerPhase - 1
+            end = (i+1)*(2*self.time.nGridPerPhase - 1)
             iniT = i*self.time.nGridPerPhase
             endT = (i+1)*self.time.nGridPerPhase
             self.hermit_simpson_collocation(
@@ -477,7 +478,7 @@ class OptimalControlProblem():
         for i in range(self.time.nGridPerPhase-1):
             k = nPhase*self.time.nGridPerPhase + i
             g = self.npl.sym.T[k+1] - self.npl.sym.T[k]
-            self.add_constraint(g, 0, ca.inf)
+            self.add_constraint(g, 6, ca.inf)
     
     def solve_npl(self) -> list:
         aux_debgug = self.solver(
@@ -525,11 +526,14 @@ class OptimalControlProblem():
         t_opt = traj_opt[2].full().flatten()
         self.solution.t = []
         for i in range(len(self.phases)):
+            t_phase = []
             for j in range(self.time.nGridPerPhase-1):
                 k = i*self.time.nGridPerPhase + j
-                self.solution.t += [t_opt[k]]
-                self.solution.t += [t_opt[k] + (t_opt[k+1]-t_opt[k])/2]
-            self.solution.t += [t_opt[(i+1)*self.time.nGridPerPhase-1]]
+                t_phase += [t_opt[k]]
+                t_phase += [t_opt[k] + (t_opt[k+1]-t_opt[k])/2]
+            t_phase += [t_opt[(i+1)*self.time.nGridPerPhase-1]]
+            self.phases[i].t = t_phase
+            self.solution.t += t_phase
     
     def get_solution_variables(self, traj_opt):
         """Get the solution of the optimization problem"""
@@ -561,23 +565,25 @@ class OptimalControlProblem():
         fig, axs = plt.subplots(2,1)
         #fig.suptitle('Simulation Results: ' + optimzation_status + '\nCost: ' + str(self.solution.cost))
         fig.suptitle('Simulation Results \nCost: ' + str(self.solution.cost))
-        #axs[0].plot(t_plot/60, self.solution.traj['i_el'].f(t_plot), '-b')
-        axs[0].plot(self.solution.t, self.solution.traj['i_el'].values, '-b')
-        axs[0].plot(self.solution.t, self.solution.traj['i_el'].values, '.b')
+        for i in range(len(self.phases)):
+            t_plot = np.linspace(self.phases[i].t[0], self.phases[i].t[-1], num=20*self.time.nGridPerPhase, endpoint=True)
+            axs[0].plot(t_plot, self.solution.traj['i_el'].f[i](t_plot), '-')
+        axs[0].plot(self.solution.t, self.solution.traj['i_el'].values, '.k')
         axs[0].set_ylabel('Electrolyzer current [A]')
         axs[0].grid(axis='both',linestyle='-.')
         #axs[0].set_xticks(np.arange(0, 26, 2))
 
-        #axs[1].plot(t_plot/60, self.solution.traj['v_h2'].f(t_plot), '-g')
-        axs[1].plot(self.solution.t, self.solution.traj['v_h2'].values, '-g')
-        axs[1].plot(self.solution.t, self.solution.traj['v_h2'].values, '.g')
+        for i in range(len(self.phases)):
+            t_plot = np.linspace(self.phases[i].t[0], self.phases[i].t[-1], num=20*self.time.nGridPerPhase, endpoint=True)
+            axs[1].plot(t_plot, self.solution.traj['v_h2'].f[i](t_plot), '-')
+        axs[1].plot(self.solution.t, self.solution.traj['v_h2'].values, '.k')
         axs[1].set_ylabel('Hydrogen [Nm3]')
         axs[1].set_xlabel('Time [h]')
         axs[1].grid(axis='both',linestyle='-.')
         #axs[1].set_xticks(np.arange(0, 26, 2))
 
-        plt.show()
-        #plt.savefig(files.get_plot_file_name(__file__), bbox_inches='tight', dpi=300)
+        #plt.show()
+        plt.savefig(self.name, bbox_inches='tight', dpi=300)
 
     def evaluate_error(self, t=None, plot=False):
         if t is None:
