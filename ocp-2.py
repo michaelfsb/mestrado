@@ -13,7 +13,7 @@ states.add(name='v_h2', min=0.6, max=2.5)
 controls = VariableList()
 controls.add(name='i_el', min=1, max=100)
 
-problem = OptimalControlProblem(name='ocp-1', controls=controls, states=states, time=t)
+problem = OptimalControlProblem(name='ocp-2', controls=controls, states=states, time=t)
 
 # Models equations
 [f_h2, v_el, p_el] = electrolyzer_model(controls['i_el'])
