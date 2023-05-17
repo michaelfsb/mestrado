@@ -167,14 +167,19 @@ class VariableList():
         return max_values
 
 class Phase():
-    def __init__(self, name, model):
+    def __init__(self, name, model, cost):
         self.name = name
         self.model = model
         self.modelFunc = []
+        self.cost = cost
+        self.costFunc = []
         t = []
     
     def set_model_function(self, func):
         self.modelFunc = func
+
+    def set_cost_function(self, func):
+        self.costFunc = func
 
 class OptimalTrajectory():
     def __init__(self, name: str, values, f: list):
@@ -257,6 +262,7 @@ class OptimalControlProblem():
     def set_phases(self, phases: list):
         for i in range(len(phases)):
             phases[i].set_model_function(self.__buil_model_function(phases[i].model, phases[i].name))
+            phases[i].set_cost_function(self.__buil_cost_function(phases[i].cost, phases[i].name))
         self.phases = phases
         self.time.nGrid = len(self.phases)*self.time.nGridPerPhase
         
@@ -272,9 +278,9 @@ class OptimalControlProblem():
             ['x', 'u', 't'], 
             ['x_dot'])
     
-    def set_langrange_cost(self, l_cost):
-        self.langrange_cost = ca.Function(
-            'L', 
+    def __buil_cost_function(self, l_cost, phase_name: str):
+        return ca.Function(
+            'L_' + phase_name, 
             [ca.hcat(self.states.get_all_values()), ca.hcat(self.controls.get_all_values()), self.time.value],
             [l_cost],
             ['x', 'u', 't'],
@@ -339,7 +345,7 @@ class OptimalControlProblem():
             endT = (i+1)*self.time.nGridPerPhase
             self.hermit_simpson_collocation(
                 self.phases[i].modelFunc, 
-                self.langrange_cost,
+                self.phases[i].costFunc,
                 self.npl.sym.X[ini:end],
                 self.npl.sym.U[ini:end],
                 self.npl.sym.T[iniT:endT])

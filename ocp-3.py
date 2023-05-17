@@ -18,27 +18,22 @@ problem = OptimalControlProblem(name='ocp-3', controls=controls, states=states, 
 # Models equations
 [f_h2, v_el, p_el] = electrolyzer_model(controls['i_el'])
 [i_ps, v_ps, p_ps] = pv_model(Irradiation(t.value)) 
-v_h2_dot = thank_model(f_h2, HydrogenDemand(t.value)) 
-phase_on = Phase(name='on', model=v_h2_dot)
 
+# Phases
 v_h2_dot_off = thank_model(0, HydrogenDemand(t.value)) 
-phase_off = Phase(name='off', model=v_h2_dot_off)
+phase_off = Phase(name='off', model=v_h2_dot_off, cost=p_el)
+
+v_h2_dot = thank_model(f_h2, HydrogenDemand(t.value)) 
+phase_on = Phase(name='on', model=v_h2_dot, cost=(p_el - p_ps)**2)
 
 v_h2_dot_off2 = thank_model(0, HydrogenDemand(t.value)) 
-phase_off2 = Phase(name='off', model=v_h2_dot_off2)
+phase_off2 = Phase(name='off2', model=v_h2_dot_off2, cost=p_el)
 
-#problem.set_phases([phase_off, phase_on, phase_off])
 problem.set_phases([phase_off, phase_on, phase_off2])
-
-# Lagrange cost function
-f_l = (p_el - p_ps)**2
-
-problem.set_langrange_cost(f_l)
-
-problem.set_langrange_cost(f_l)
 
 problem.set_guess(control=[30], state=[2.5])
 
+# Solve and Plot 
 problem.solve()
 
 problem.plot_solution()
