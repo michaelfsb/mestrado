@@ -5,13 +5,13 @@ from models.input_data import HydrogenDemand, Irradiation
 from models.photovoltaic_panel import pv_model
 from models.tank import thank_model
 
-t = Time(initial=0, final=1440, nGridPerPhase=4)
+t = Time(initial=0, final=1440, nGridPerPhase=20)
 
 states = VariableList()
 states.add(name='v_h2', min=0.6, max=2.5)
 
 controls = VariableList()
-controls.add(name='i_el', min=20, max=100)
+controls.add(name='i_el', min=0, max=100)
 
 problem = OptimalControlProblem(name='ocp-3', controls=controls, states=states, time=t)
 

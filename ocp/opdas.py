@@ -5,7 +5,7 @@ from scipy import interpolate
 
 class Time():
     """ 
-    Rrepresents the time domain for a OptimalControlProblem.
+    Represents the time domain for a OptimalControlProblem.
 
     :param name: A string representing the name of the time domain.
     :param value: A MX symbol representing the value of the time domain.
